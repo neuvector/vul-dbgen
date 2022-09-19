@@ -20,45 +20,45 @@ const testOval = `<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-
 <definitions>
   <definition class="vulnerability" id="oval:com.microsoft.cbl-mariner:def:2666" version="1647003694">
 	<metadata>
-	  <title>CVE-2000-0803 affecting package groff 1.22.3</title>
+	  <title>CVE-2015-0803 affecting package groff 1.22.3</title>
 	  <affected family="unix">
 		<platform>CBL-Mariner</platform>
 	  </affected>
-	  <reference ref_id="CVE-2000-0803" ref_url="https://nvd.nist.gov/vuln/detail/CVE-2000-0803" source="CVE"/>
+	  <reference ref_id="CVE-2015-0803" ref_url="https://nvd.nist.gov/vuln/detail/CVE-2015-0803" source="CVE"/>
 	  <patchable>true</patchable>
 	  <advisory_date>2020-10-08T18:09:51Z</advisory_date>
 	  <advisory_id>2666</advisory_id>
 	  <severity>Critical</severity>
-	  <description>CVE-2000-0803 affecting package groff 1.22.3. A patched version of the package is available.</description>
+	  <description>CVE-2015-0803 affecting package groff 1.22.3. A patched version of the package is available.</description>
 	</metadata>
 	<criteria operator="AND">
-	  <criterion comment="Package groff is earlier than 1.22.3-5, affected by CVE-2000-0803" test_ref="oval:com.microsoft.cbl-mariner:tst:1647003694000000"/>
+	  <criterion comment="Package groff is earlier than 1.22.3-5, affected by CVE-2015-0803" test_ref="oval:com.microsoft.cbl-mariner:tst:1647003694000000"/>
 	</criteria>
   </definition>
   <definition class="vulnerability" id="oval:com.microsoft.cbl-mariner:def:3173" version="1647003694">
 	<metadata>
-	  <title>CVE-2008-3914 affecting package clamav 0.101.2</title>
+	  <title>CVE-2018-3914 affecting package clamav 0.101.2</title>
 	  <affected family="unix">
 		<platform>CBL-Mariner</platform>
 	  </affected>
-	  <reference ref_id="CVE-2008-3914" ref_url="https://nvd.nist.gov/vuln/detail/CVE-2008-3914" source="CVE"/>
+	  <reference ref_id="CVE-2018-3914" ref_url="https://nvd.nist.gov/vuln/detail/CVE-2018-3914" source="CVE"/>
 	  <patchable>true</patchable>
 	  <advisory_date>2021-05-06T23:56:51Z</advisory_date>
 	  <advisory_id>3173</advisory_id>
 	  <severity>Critical</severity>
-	  <description>CVE-2008-3914 affecting package clamav 0.101.2. An upgraded version of the package is available that resolves this issue.</description>
+	  <description>CVE-2018-3914 affecting package clamav 0.101.2. An upgraded version of the package is available that resolves this issue.</description>
 	</metadata>
 	<criteria operator="AND">
-	  <criterion comment="Package clamav is earlier than 0.103.2-1, affected by CVE-2008-3914" test_ref="oval:com.microsoft.cbl-mariner:tst:1647003694000003"/>
+	  <criterion comment="Package clamav is earlier than 0.103.2-1, affected by CVE-2018-3914" test_ref="oval:com.microsoft.cbl-mariner:tst:1647003694000003"/>
 	</criteria>
   </definition>
 </definitions>
   <tests>
-  <linux-def:rpminfo_test check="at least one" comment="Package groff is earlier than 1.22.3-5, affected by CVE-2000-0803" id="oval:com.microsoft.cbl-mariner:tst:1647003694000000" version="1647003694">
+  <linux-def:rpminfo_test check="at least one" comment="Package groff is earlier than 1.22.3-5, affected by CVE-2015-0803" id="oval:com.microsoft.cbl-mariner:tst:1647003694000000" version="1647003694">
 	<linux-def:object object_ref="oval:com.microsoft.cbl-mariner:obj:1647003694000001"/>
 	<linux-def:state state_ref="oval:com.microsoft.cbl-mariner:ste:1647003694000002"/>
   </linux-def:rpminfo_test>
-  <linux-def:rpminfo_test check="at least one" comment="Package clamav is earlier than 0.103.2-1, affected by CVE-2008-3914" id="oval:com.microsoft.cbl-mariner:tst:1647003694000003" version="1647003694">
+  <linux-def:rpminfo_test check="at least one" comment="Package clamav is earlier than 0.103.2-1, affected by CVE-2018-3914" id="oval:com.microsoft.cbl-mariner:tst:1647003694000003" version="1647003694">
 	<linux-def:object object_ref="oval:com.microsoft.cbl-mariner:obj:1647003694000004"/>
 	<linux-def:state state_ref="oval:com.microsoft.cbl-mariner:ste:1647003694000005"/>
   </linux-def:rpminfo_test>
@@ -84,16 +84,16 @@ const testOval = `<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-
 func TestParseOval(t *testing.T) {
 	reader := strings.NewReader(testOval)
 	expectedResult := updater.Vulnerability{
-		Name:        "CVE-2000-0803",
-		Description: "CVE-2000-0803 affecting package groff 1.22.3. A patched version of the package is available.",
-		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2000-0803",
+		Name:        "CVE-2015-0803",
+		Description: "CVE-2015-0803 affecting package groff 1.22.3. A patched version of the package is available.",
+		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2015-0803",
 		IssuedDate:  time.Time{},
 		Severity:    "Critical",
 	}
 	expectedResult2 := updater.Vulnerability{
-		Name:        "CVE-2008-3914",
-		Description: "CVE-2008-3914 affecting package clamav 0.101.2. An upgraded version of the package is available that resolves this issue.",
-		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2008-3914",
+		Name:        "CVE-2018-3914",
+		Description: "CVE-2018-3914 affecting package clamav 0.101.2. An upgraded version of the package is available that resolves this issue.",
+		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2018-3914",
 		IssuedDate:  time.Time{},
 		Severity:    "Critical",
 	}
@@ -140,7 +140,7 @@ func TestParseOval(t *testing.T) {
 		t.Errorf("TestParseOval Error with parseMarinerOval: %s", err)
 	}
 	if len(vulns) < 2 {
-		t.Errorf("TestParseOval Error: Not all entries were parsed")
+		t.Errorf("TestParseOval Error: Not all entries were parsed, vulns=%d", len(vulns))
 	} else if vulns[0].Name != expectedResult.Name || vulns[0].Description != expectedResult.Description || vulns[0].Link != expectedResult.Link ||
 		vulns[0].IssuedDate != expectedResult.IssuedDate || vulns[0].Severity != expectedResult.Severity || vulns[0].FixedIn[0] != expectedResult.FixedIn[0] {
 		t.Errorf("Expected vuln mismatch: \nexpected: %v\nreceived: %v", expectedResult, vulns[0])
