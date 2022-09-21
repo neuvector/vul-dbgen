@@ -158,7 +158,7 @@ func parseMarinerOval(ovalReader io.Reader) (vulnerabilities []updater.Vulnerabi
 		cveName := cveName(definition)
 
 		if year, err := common.ParseYear(cveName[4:]); err != nil {
-			log.WithFields(log.Fields{"cve": cveName}).Error("Unable to parse year from CVE name")
+			log.WithFields(log.Fields{"cve": cveName}).Warn("Unable to parse year from CVE name")
 			continue
 		} else if year < common.FirstYear {
 			continue

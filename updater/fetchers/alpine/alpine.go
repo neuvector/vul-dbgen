@@ -210,7 +210,6 @@ func correctVulRecord(vul *updater.Vulnerability) {
 		for i, _ := range vul.FixedIn {
 			vul.FixedIn[i].MinVer, _ = common.NewVersion("1.1.1d")
 		}
-		log.WithFields(log.Fields{"CVE": vul}).Debug()
 	}
 }
 
@@ -319,11 +318,11 @@ func generatePkg(pkg, cveName, osVer, fixedVer string) []updater.Vulnerability {
 		cve = strings.TrimSpace(cve)
 
 		if !cveRegex.MatchString(cve) {
-			log.WithField("cve", cve).Error("Unknown CVE name format")
+			log.WithField("cve", cve).Warn("Unknown CVE name format")
 			continue
 		}
 		if year, err := common.ParseYear(cve[4:]); err != nil {
-			log.WithField("cve", cve).Error("Unable to parse year from CVE name")
+			log.WithField("cve", cve).Warn("Unable to parse year from CVE name")
 			continue
 		} else if year < common.FirstYear {
 			continue
@@ -335,7 +334,7 @@ func generatePkg(pkg, cveName, osVer, fixedVer string) []updater.Vulnerability {
 
 		ver, err := common.NewVersion(fixedVer)
 		if err != nil {
-			log.WithFields(log.Fields{"err": err, "version": fixedVer, "cve": cve}).Error("invalid version")
+			log.WithFields(log.Fields{"err": err, "version": fixedVer, "cve": cve}).Warn("invalid version")
 			continue
 		}
 		featureVersion := updater.FeatureVersion{

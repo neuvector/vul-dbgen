@@ -17,8 +17,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
-	"github.com/vul-dbgen/share"
 )
 
 const (
@@ -27,7 +27,6 @@ const (
 
 	metadataKey string = "NVD"
 	retryTimes         = 5
-	startYear          = 2012
 	timeFormat         = "2006-01-02T15:04Z"
 )
 
@@ -176,7 +175,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 	defer os.RemoveAll(fetcher.localPath)
 
 	// Get data feeds.
-	for y := startYear; y <= time.Now().Year(); y++ {
+	for y := common.FirstYear; y <= time.Now().Year(); y++ {
 		dataFeedName := strconv.Itoa(y)
 
 		retry := 0

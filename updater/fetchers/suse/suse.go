@@ -316,17 +316,17 @@ func parseTestFeatureVersion(t *test) *testInfo {
 					info.verStr = v
 					return &info
 				} else {
-					log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Error("Failed to parse package version")
+					log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Warn("Failed to parse package version")
 					return nil
 				}
 			}
 		}
 
-		log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Error("Failed to parse package version operator")
+		log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Warn("Failed to parse package version operator")
 		return nil
 	}
 
-	log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Error("Fialed to parse test comment")
+	log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Warn("Fialed to parse test comment")
 	return nil
 }
 
