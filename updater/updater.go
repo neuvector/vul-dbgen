@@ -12,7 +12,7 @@ const (
 	flagName      = "updater/last"
 	notesFlagName = "updater/notes"
 
-	CVESourceRoot = "cvesource/"
+	CVESourceRoot = "vul-source/"
 )
 
 type RawFile struct {
