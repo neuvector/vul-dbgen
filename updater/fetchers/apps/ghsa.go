@@ -2,6 +2,7 @@ package apps
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,9 +17,9 @@ import (
 )
 
 const (
-	npmDataFile   = "github/npm.data"
-	mavenDataFile = "github/maven.data"
-	pipDataFile   = "github/pip.data"
+	npmDataFile   = "github/npm.data.gz"
+	mavenDataFile = "github/maven.data.gz"
+	pipDataFile   = "github/pip.data.gz"
 )
 
 type ghsaData struct {
@@ -71,14 +72,21 @@ func loadGHSAData(ghsaFile, prefix string) error {
 	dataFile := fmt.Sprintf("%s%s", updater.CVESourceRoot, ghsaFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
-		log.Error("Cannot find local database")
+		log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")
 		return fmt.Errorf("Unabled to fetch any vulernabilities")
 	}
 
 	defer f.Close()
 
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		log.WithFields(log.Fields{"file": dataFile}).Error("Failed to create feed reader")
+		return fmt.Errorf("Unabled to fetch any vulernabilities")
+	}
+	defer gzr.Close()
+
 	var count int
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(gzr)
 	for scanner.Scan() {
 		var r ghsaData
 		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {

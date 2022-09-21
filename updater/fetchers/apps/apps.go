@@ -10,8 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
-	"github.com/vul-dbgen/share"
 )
 
 // Must not use pointer, some modules use the same object
@@ -213,7 +213,7 @@ func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFet
 }
 
 func cveCalibrationLoad() {
-	dat, err := ioutil.ReadFile("../scanner/dbgen/apps_calibration")
+	dat, err := ioutil.ReadFile("apps_calibration")
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Info("open apps_calibration fail")
 		return
