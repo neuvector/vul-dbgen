@@ -1,5 +1,5 @@
 #!/bin/bash
 
 echo "==> Making dbgen"
-go build || exit $?
+make || exit $?
 ./dbgen -v $VULN_VER
