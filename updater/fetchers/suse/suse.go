@@ -181,13 +181,13 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, erro
 
 		if strings.HasPrefix(cvename, "CVE-") {
 			if year, e := common.ParseYear(cvename[4:]); e != nil {
-				log.WithFields(log.Fields{"cve": cvename}).Error("Unexpected vulnerability year")
+				log.WithFields(log.Fields{"cve": cvename}).Warn("Unexpected vulnerability year")
 				continue
 			} else if year < common.FirstYear {
 				continue
 			}
 		} else {
-			log.WithFields(log.Fields{"cve": cvename}).Error("Unexpected vulnerability name")
+			log.WithFields(log.Fields{"cve": cvename}).Warn("Unexpected vulnerability name")
 			continue
 		}
 
@@ -206,7 +206,7 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, erro
 				vulnerability.Link = cveLink(definition)
 			}
 			// if vulnerability.Severity == common.Unknown {
-			// 	log.WithFields(log.Fields{"cve": cvename, "file": o.filename}).Error("Unknown severity")
+			// 	log.WithFields(log.Fields{"cve": cvename, "file": o.filename}).Warn("Unknown severity")
 			// }
 			for _, p := range pkgs {
 				vulnerability.FixedIn = append(vulnerability.FixedIn, p)
@@ -225,7 +225,7 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, erro
 			vulnerabilities = append(vulnerabilities, vulnerability)
 
 			// if vulnerability.Name == cveToDebug {
-			// 	log.WithFields(log.Fields{"v": vulnerability}).Error("================")
+			// 	log.WithFields(log.Fields{"v": vulnerability}).Warn()
 			// }
 		}
 	}
@@ -343,7 +343,7 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 				if ti, ok := testMap[c.TestRef]; ok {
 					fv.Feature.Namespace = fmt.Sprintf("%s%s", o.nsPrefix, ti.version)
 				} else {
-					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Error("Failed locate test record")
+					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Warn("Failed locate test record")
 				}
 			} else if !strings.HasPrefix(c.Comment, "SUSE") && (strings.Contains(c.Comment, " is installed") || strings.Contains(c.Comment, " is not affected")) {
 				// This is the package line
@@ -356,7 +356,7 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 					fv.Version = ti.version
 					fv.Feature.Name = ti.name
 				} else {
-					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Error("Failed locate test record")
+					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Warn("Failed locate test record")
 				}
 			}
 		}

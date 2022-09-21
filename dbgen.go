@@ -10,6 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 	_ "github.com/vul-dbgen/updater/fetchers/alpine"
 	_ "github.com/vul-dbgen/updater/fetchers/amazon"
@@ -21,7 +22,6 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/suse"
 	_ "github.com/vul-dbgen/updater/fetchers/ubuntu"
 	_ "github.com/vul-dbgen/updater/metadata_fetchers/nvd"
-	"github.com/vul-dbgen/share"
 )
 
 func usage() {
