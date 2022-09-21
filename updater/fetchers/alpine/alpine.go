@@ -57,7 +57,7 @@ var cveSeverRegex = regexp.MustCompile(`<span data-testid="vuln-cvssv2-base-scor
 func parseSecDB(body []byte, url string) ([]updater.Vulnerability, error) {
 	var data secDBData
 	if err := json.Unmarshal(body, &data); err != nil {
-		log.WithError(err).WithFields(log.Fields{"url": url}).Error("Failed to unmarshal alpine db")
+		log.WithError(err).WithFields(log.Fields{"url": url}).Warn("Failed to unmarshal alpine db")
 		return nil, err
 	}
 
@@ -66,7 +66,7 @@ func parseSecDB(body []byte, url string) ([]updater.Vulnerability, error) {
 		for version, raw := range pkg.Pkg.SecFixes {
 			ver, err := common.NewVersion(version)
 			if err != nil {
-				log.WithError(err).WithField("version", version).Error("Failed to parse package version. skipping")
+				log.WithError(err).WithField("version", version).Warn("Failed to parse package version. skipping")
 				continue
 			}
 
@@ -98,7 +98,7 @@ func parseSecDB(body []byte, url string) ([]updater.Vulnerability, error) {
 				}
 
 				if year, err := common.ParseYear(cveName[4:]); err != nil {
-					log.WithField("cve", cveName).Error("Unable to parse year from CVE name")
+					log.WithField("cve", cveName).Warn("Unable to parse year from CVE name")
 					continue
 				} else if year < common.FirstYear {
 					continue

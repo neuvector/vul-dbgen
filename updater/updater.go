@@ -35,7 +35,7 @@ func Update(datastore Datastore) bool {
 	// Fetch updates.
 	status, vulnerabilities, appVuls, rawFiles := fetch(datastore)
 	if !status {
-		log.WithFields(log.Fields{"status": status}).Error("CVE update FAIL")
+		log.WithFields(log.Fields{"status": status}).Error("Vulnerability update FAIL")
 		return false
 	}
 
