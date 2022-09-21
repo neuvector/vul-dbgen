@@ -7,7 +7,7 @@
 /dbgen
 /cvedb
 /cvedb.*
-/cvesource
+/vul-source
 /keys
 /*.tb
 /*.txt
