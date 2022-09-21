@@ -126,7 +126,7 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				} else if !strings.HasPrefix(vulnName, "CVE-") {
 					continue
 				} else if year, err := common.ParseYear(vulnName[4:]); err != nil {
-					log.WithField("cve", vulnName).Error("Unable to parse year from CVE name")
+					log.WithField("cve", vulnName).Warn("Unable to parse year from CVE name")
 					continue
 				} else if year < common.FirstYear {
 					continue

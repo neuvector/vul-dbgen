@@ -170,9 +170,9 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 		}
 
 		if desc, vers, err := getAlas(vuln.Name, vuln.Link, pkgs, net); err != nil {
-			log.WithFields(log.Fields{"cve": vuln.Name, "error": err}).Error("Failed to parse amazon CVE page")
+			log.WithFields(log.Fields{"cve": vuln.Name, "error": err}).Warn("Failed to parse amazon CVE page")
 		} else if len(vers) == 0 {
-			log.WithFields(log.Fields{"cve": vuln.Name, "pkgs": pkgs}).Error("Failed to parse amazon CVE page, no package version")
+			log.WithFields(log.Fields{"cve": vuln.Name, "pkgs": pkgs}).Warn("Failed to parse amazon CVE page, no package version")
 		} else {
 			vuln.Description = strings.TrimSpace(desc)
 

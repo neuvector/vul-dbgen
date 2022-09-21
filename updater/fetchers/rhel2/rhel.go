@@ -371,7 +371,7 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []up
 		if strings.HasPrefix(name(definition), "RHSA-") {
 			nameId = name(definition)
 			if year, e := common.ParseYear(nameId[5:]); e != nil {
-				log.WithFields(log.Fields{"name": nameId}).Error("Unexpected vulnerability name")
+				log.WithFields(log.Fields{"name": nameId}).Warn("Unexpected vulnerability name")
 				continue
 			} else if year < common.FirstYear {
 				continue
@@ -379,14 +379,14 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []up
 		} else if strings.HasPrefix(cveName(definition), "CVE-") {
 			nameId = cveName(definition)
 			if year, e := common.ParseYear(nameId[4:]); e != nil {
-				log.WithFields(log.Fields{"name": nameId}).Error("Unexpected vulnerability name")
+				log.WithFields(log.Fields{"name": nameId}).Warn("Unexpected vulnerability name")
 				continue
 			} else if year < common.FirstYear {
 				continue
 			}
 		} else {
 			if !strings.Contains(definition.Title, "This file intentionally left empty") {
-				log.WithFields(log.Fields{"rhsa": rhsa, "Title": definition.Title}).Error("Failed to get CVE name")
+				log.WithFields(log.Fields{"rhsa": rhsa, "Title": definition.Title}).Warn("Failed to get CVE name")
 			}
 			continue
 		}
