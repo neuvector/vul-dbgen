@@ -17,6 +17,7 @@ Generate NeuVector vulnerability database
 | apache | https://www.cvedetails.com/vendor/45/Apache.html |
 | busybox | https://www.cvedetails.com/vulnerability-list/vendor_id-4282/Busybox.html |
 | Java maven | https://github.com/advisories |
+| Kubernetes | https://kubernetes.io/docs/reference/issues-security/official-cve-feed/ |
 | Microsoft mariner | https://github.com/microsoft/CBL-MarinerVulnerabilityData |
 | nginx | http://nginx.org/en/security_advisories.html |
 | npm | https://github.com/advisories |

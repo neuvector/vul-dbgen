@@ -59,7 +59,6 @@ type ghsaData struct {
 	} `json:"firstPatchedVersion"`
 }
 
-// FetchUpdate gets vulnerability updates from the Node JS OVAL definitions.
 func ghsaUpdate() error {
 	log.Info("fetching ghsa vulnerabilities")
 	loadGHSAData(npmDataFile, "")
