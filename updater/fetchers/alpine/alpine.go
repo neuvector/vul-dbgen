@@ -1,14 +1,11 @@
 package alpine
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -33,7 +30,7 @@ var cveRegex = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
 
 type AlpineFetcher struct {
 	repositoryLocalPath string
-	aportsLocalPath     string
+	// aportsLocalPath     string
 }
 
 type secDBData struct {
@@ -188,23 +185,36 @@ func (u *AlpineFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	}
 
 	// Download from aport
-	if vuls, err := u.fromAports(); err == nil {
-		for _, vul := range vuls {
-			key := fmt.Sprintf("%s:%s", vul.FixedIn[0].Feature.Namespace, vul.Name)
-			if _, ok := vulsMap[key]; !ok {
-				correctVulRecord(&vul)
-				resp.Vulnerabilities = append(resp.Vulnerabilities, vul)
-				//log.WithFields(log.Fields{"CVE": vul.Name}).Debug("add cve")
+	/*
+		if vuls, err := u.fromAports(); err == nil {
+			for _, vul := range vuls {
+				key := fmt.Sprintf("%s:%s", vul.FixedIn[0].Feature.Namespace, vul.Name)
+				if _, ok := vulsMap[key]; !ok {
+					correctVulRecord(&vul)
+					resp.Vulnerabilities = append(resp.Vulnerabilities, vul)
+					//log.WithFields(log.Fields{"CVE": vul.Name}).Debug("add cve")
+				}
 			}
+		} else {
+			return resp, err
 		}
-	} else {
-		return resp, err
-	}
+	*/
 
 	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching alpine done")
 	return resp, nil
 }
 
+func (u *AlpineFetcher) Clean() {
+	if u.repositoryLocalPath != "" {
+		os.RemoveAll(u.repositoryLocalPath)
+	}
+
+	// if u.aportsLocalPath != "" {
+	// 	os.RemoveAll(u.aportsLocalPath)
+	// }
+}
+
+/*
 func correctVulRecord(vul *updater.Vulnerability) {
 	if vul.Name == "CVE-2020-1967" {
 		for i, _ := range vul.FixedIn {
@@ -225,12 +235,6 @@ func (u *AlpineFetcher) fromAports() ([]updater.Vulnerability, error) {
 			continue
 		}
 
-		/*
-		   if branch != "origin/3.10-stable" {
-		       continue
-		   }
-		*/
-
 		branch = strings.TrimSpace(branch)
 		if err = u.checkout(branch); err != nil {
 			log.WithFields(log.Fields{"error": err, "branch": branch}).Error("checkout branch fail")
@@ -250,16 +254,6 @@ func (u *AlpineFetcher) fromAports() ([]updater.Vulnerability, error) {
 		})
 	}
 	return results, nil
-}
-
-func (u *AlpineFetcher) Clean() {
-	if u.repositoryLocalPath != "" {
-		os.RemoveAll(u.repositoryLocalPath)
-	}
-
-	if u.aportsLocalPath != "" {
-		os.RemoveAll(u.aportsLocalPath)
-	}
 }
 
 func getPkgName(path string) string {
@@ -381,3 +375,4 @@ func (u *AlpineFetcher) checkout(branch string) error {
 	cmd.Dir = u.aportsLocalPath
 	return cmd.Run()
 }
+*/
