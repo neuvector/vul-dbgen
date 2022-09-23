@@ -103,7 +103,7 @@ func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFet
 	if err = rubyUpdate(upstream); err != nil {
 		return resp, err
 	}
-	if err = kubernetesUpdate(); err != nil {
+	if err = k8sUpdate(); err != nil {
 		return resp, err
 	}
 	if err = openshiftUpdate(); err != nil {
@@ -198,13 +198,13 @@ func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFet
 			}
 		}
 
-		// if mv.VulName == "CVE-2021-11111" {
-		// 	log.WithFields(log.Fields{"cve": mv}).Error()
-		// }
-
 		if mv.Severity == "" {
 			continue
 		}
+
+		// if mv.ModuleName == "kubernetes" {
+		// 	log.WithFields(log.Fields{"cve": mv}).Error()
+		// }
 
 		resp.Vulnerabilities = append(resp.Vulnerabilities, mv)
 	}

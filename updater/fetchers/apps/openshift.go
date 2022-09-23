@@ -5,6 +5,7 @@ import (
 )
 
 // add kubernetes vulnerability manually
+/*
 func kubernetesUpdate() error {
 	modVul := common.AppModuleVul{
 		VulName:     "CVE-2018-1002105",
@@ -367,6 +368,7 @@ func kubernetesUpdate() error {
 
 	return nil
 }
+*/
 
 func openshiftUpdate() error {
 	modVul := common.AppModuleVul{
