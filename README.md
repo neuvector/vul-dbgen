@@ -10,6 +10,7 @@ Generate NeuVector vulnerability database
 | Alpine | https://secdb.alpinelinux.org/ |
 | Amazon | https://alas.aws.amazon.com/ |
 | Debian | https://security-tracker.debian.org/tracker/data/json |
+| Oracle OS | https://linux.oracle.com/oval/ |
 | Rancher OS | https://rancher.com/docs/os/v1.x/en/about/security/ |
 | Red Hat/CentOS | https://www.redhat.com/security/data/oval/v2/ |
 | SUSE Linux | https://ftp.suse.com/pub/projects/security/oval/ |
