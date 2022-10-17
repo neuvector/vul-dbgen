@@ -322,7 +322,7 @@ func parseTestFeatureVersion(t *test) *testInfo {
 			}
 		}
 
-		log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Warn("Failed to parse package version operator")
+		// log.WithFields(log.Fields{"test": t.ID, "comment": t.Comment}).Warn("Failed to parse package version operator")
 		return nil
 	}
 
