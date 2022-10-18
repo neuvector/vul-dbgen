@@ -116,32 +116,32 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 
 	for i, elsa := range elsaList {
 		var vs []updater.Vulnerability
+
 		retry := 0
 		for retry <= retryTimes {
 			elsaFile := fmt.Sprintf("com.oracle.elsa-%d.xml", elsa)
 			rurl := fmt.Sprintf("%s%s", ovalURI, elsaFile)
-			req, err := http.NewRequest("GET", rurl, nil)
-			req.Header.Add("User-Agent", "dbgen")
 
 			client := http.Client{}
-			r, err := client.Do(req)
-			if err != nil {
-				if retry == retryTimes {
-					log.Errorf("could not download Oracle's update file: %s", err)
-					return resp, common.ErrCouldNotDownload
-				}
-			} else {
+			req, _ := http.NewRequest("GET", rurl, nil)
+			req.Header.Add("User-Agent", "dbgen")
+			if r, err := client.Do(req); err == nil {
 				vs, err = parseELSA(elsaFile, r.Body)
 
 				r.Body.Close()
-				if err != nil && retry == retryTimes {
-					log.Errorf("could not parse Oracle's xml database: %s", err)
-					return resp, err
-				}
 				if err == nil {
+					break
+				} else if retry == retryTimes {
+					log.Errorf("could not parse Oracle's xml database: %s", err)
+					break
+				}
+			} else {
+				if retry == retryTimes {
+					log.Errorf("could not download Oracle's update file: %s", err)
 					break
 				}
 			}
+
 			time.Sleep(time.Second * 2)
 			retry++
 		}
