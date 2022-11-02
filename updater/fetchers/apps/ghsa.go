@@ -135,7 +135,7 @@ func loadGHSAData(ghsaFile, prefix string) error {
 		}
 		if len(modVul.CVEs) > 0 {
 			modVul.VulName = modVul.CVEs[0]
-		} else if len(r.Advisory.CWEs.Nodes) > 0 {
+		} else if r.Advisory.GHSAID == "" {
 			modVul.VulName = r.Advisory.CWEs.Nodes[0].CWEID
 		} else {
 			modVul.VulName = r.Advisory.GHSAID
