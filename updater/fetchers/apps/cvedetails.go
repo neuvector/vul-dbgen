@@ -22,6 +22,7 @@ const (
 	tomcatCVEDetailURL          = "https://www.cvedetails.com/vulnerability-list/vendor_id-45/product_id-887/"
 	dotnetCoreCVEDetailURL      = "https://www.cvedetails.com/vulnerability-list/vendor_id-26/product_id-43007/Microsoft-.net-Core.html"
 	dotnetFrameworkCVEDetailURL = "https://www.cvedetails.com/vulnerability-list/vendor_id-26/product_id-2002/Microsoft-.net-Framework.html"
+	dotnetCVEDetailURL          = "https://www.cvedetails.com/vulnerability-list/vendor_id-26/product_id-80849/Microsoft-.net.html"
 )
 
 func cvedetailUpdate() error {
@@ -51,6 +52,9 @@ func busyboxUpdate() error {
 
 func dotnetUpdate() error {
 	if err := readCVEDetailsPage(dotnetCoreCVEDetailURL, ".net Core", ".NET:Core"); err != nil {
+		return err
+	}
+	if err := readCVEDetailsPage(dotnetCVEDetailURL, ".net", ".NET"); err != nil {
 		return err
 	}
 	return readCVEDetailsPage(dotnetFrameworkCVEDetailURL, ".net Framework", ".NET:Framework")
