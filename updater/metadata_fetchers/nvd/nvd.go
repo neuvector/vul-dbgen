@@ -311,9 +311,9 @@ func (fetcher *NVDMetadataFetcher) AddMetadata(v *updater.VulnerabilityWithLock)
 				PublishedDate:    v.Vulnerability.IssuedDate,
 				LastModifiedDate: v.Vulnerability.LastModDate,
 			}
+		} else {
+			found = true
 		}
-
-		found = true
 
 		// Create Metadata map if necessary.
 		if v.Metadata == nil {
@@ -355,7 +355,7 @@ func (fetcher *NVDMetadataFetcher) AddMetadata(v *updater.VulnerabilityWithLock)
 	// 	log.WithFields(log.Fields{"v": v.Vulnerability}).Error("================")
 	// }
 
-	if found {
+	if found && (maxV3 > 0 || maxV2 > 0) {
 		// log.WithFields(log.Fields{"cve": v.Name, "maxV2": maxV2, "maxV3": maxV3}).Info()
 
 		// For NVSHAS-4709, always set the severity by CVSS scores
@@ -373,7 +373,6 @@ func (fetcher *NVDMetadataFetcher) AddMetadata(v *updater.VulnerabilityWithLock)
 			v.Vulnerability.Description = getCveDescription(v.Vulnerability.Name)
 		}
 	}
-
 	return nil
 }
 
