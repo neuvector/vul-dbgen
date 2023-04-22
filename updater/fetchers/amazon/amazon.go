@@ -163,6 +163,12 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 
 		vuln.IssuedDate, _ = time.Parse(time.RFC1123, item.Issued)
 		vuln.LastModDate, _ = time.Parse(time.RFC1123, item.LastMod)
+		if vuln.IssuedDate.IsZero() {
+			vuln.IssuedDate = vuln.LastModDate
+		}
+		if vuln.LastModDate.IsZero() {
+			vuln.LastModDate = vuln.IssuedDate
+		}
 
 		pkgs := make([]string, len(tokens)-2)
 		for i, token := range tokens[2:] {
