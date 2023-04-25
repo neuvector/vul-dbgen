@@ -63,6 +63,7 @@ func k8sUpdate() error {
 		modVul := common.AppModuleVul{
 			VulName:     v.ID,
 			Description: v.Summary,
+			AppName:     "kubernetes",
 			ModuleName:  "kubernetes",
 			Link:        v.URL,
 			CVEs:        []string{v.ID},

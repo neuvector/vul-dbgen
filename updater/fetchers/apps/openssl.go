@@ -96,6 +96,7 @@ func opensslUpdate() error {
 
 		modVul.Description = strings.Trim(description, "\n")
 		modVul.VulName = "CVE-" + cveNumber
+		modVul.AppName = "openssl"
 		modVul.ModuleName = "openssl"
 		modVul.Link = link
 		modVul.Score = 0

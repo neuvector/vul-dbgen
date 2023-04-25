@@ -123,9 +123,8 @@ func fetch(datastore Datastore) (bool, []Vulnerability, []common.AppModuleVul, [
 
 	// app vulnerability, must be done metadata is fetched
 	log.Info("fetching app vulnerability updates")
-	upstream := xslateUbuntuUpstream(vulnerabilities)
 	for name, f := range appFetchers {
-		response, err := f.FetchUpdate(metadataFetchers, upstream)
+		response, err := f.FetchUpdate(metadataFetchers)
 		if err != nil {
 			log.WithFields(log.Fields{"name": name, "error": err}).Error("App CVE update FAIL")
 			return false, nil, nil, nil

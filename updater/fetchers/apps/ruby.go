@@ -18,7 +18,7 @@ import (
 
 const rubyGitUrl = "https://github.com/rubysec/ruby-advisory-db"
 
-func rubyUpdate(upstream []common.AppModuleVul) error {
+func rubyUpdate() error {
 	log.Debug("")
 
 	repositoryLocalPath, err := ioutil.TempDir(os.TempDir(), "ruby-advisory-db")
@@ -62,15 +62,6 @@ func rubyUpdate(upstream []common.AppModuleVul) error {
 		vulCache.Add(pkg.VulName)
 	}
 
-	for _, mv := range upstream {
-		if strings.HasPrefix(mv.ModuleName, "ruby-") {
-			mv.ModuleName = strings.Replace(mv.ModuleName, "ruby-", "ruby:", 1)
-			if !vulCache.Contains(mv.VulName) {
-				mv.CVEs = []string{mv.VulName}
-				addAppVulMap(&mv)
-			}
-		}
-	}
 	return nil
 }
 
@@ -182,6 +173,7 @@ func parseRubyYml(yaml string) *rubyVul {
 
 func rubyVulToModule(jv *rubyVul) *common.AppModuleVul {
 	mv := &common.AppModuleVul{
+		AppName:     "ruby",
 		ModuleName:  "ruby:" + jv.gem,
 		VulName:     jv.cve,
 		Description: jv.title + "/n" + jv.description,

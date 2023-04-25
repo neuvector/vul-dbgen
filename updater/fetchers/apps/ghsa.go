@@ -61,13 +61,13 @@ type ghsaData struct {
 
 func ghsaUpdate() error {
 	log.Info("fetching ghsa vulnerabilities")
-	loadGHSAData(npmDataFile, "")
-	loadGHSAData(mavenDataFile, "")
-	loadGHSAData(pipDataFile, "python:")
+	loadGHSAData(npmDataFile, "npm", "")
+	loadGHSAData(mavenDataFile, "maven", "")
+	loadGHSAData(pipDataFile, "pip", "python:")
 	return nil
 }
 
-func loadGHSAData(ghsaFile, prefix string) error {
+func loadGHSAData(ghsaFile, app, prefix string) error {
 	dataFile := fmt.Sprintf("%s%s", updater.CVESourceRoot, ghsaFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
@@ -97,6 +97,7 @@ func loadGHSAData(ghsaFile, prefix string) error {
 			Description: fmt.Sprintf("%s\n%s\n", r.Advisory.Summary, r.Advisory.Description),
 			AffectedVer: getVersion(r.AffectedVersion),
 			FixedVer:    getVersion(r.PatchedVersion.Identifier),
+			AppName:     app,
 			ModuleName:  fmt.Sprintf("%s%s", prefix, r.Package.Name),
 			Link:        r.Advisory.Link,
 			CVEs:        make([]string, 0),
