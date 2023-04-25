@@ -85,7 +85,7 @@ func parseAffectedVersion(str string) common.AppModuleVersion {
 	return mv
 }
 
-func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFetcher, upstream []common.AppModuleVul) (resp updater.AppFetcherResponse, err error) {
+func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFetcher) (resp updater.AppFetcherResponse, err error) {
 	cveCalibrationLoad()
 
 	if err = cvedetailUpdate(); err != nil {
@@ -100,7 +100,7 @@ func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFet
 	if err = opensslUpdate(); err != nil {
 		return resp, err
 	}
-	if err = rubyUpdate(upstream); err != nil {
+	if err = rubyUpdate(); err != nil {
 		return resp, err
 	}
 	if err = k8sUpdate(); err != nil {
@@ -128,7 +128,7 @@ func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFet
 			}
 		}
 
-		// upstream db doesn't always give the correct affected version information. Use provided by NVD instead.
+		// Use NVD to correct affected version.
 		if len(mv.AffectedVer) == 0 || len(mv.FixedVer) == 0 {
 			if affects, fixes, ok := nvd.AddAffectedVersion(mv.VulName); ok {
 				// log.WithFields(log.Fields{"name": mv.VulName, "affects": affects, "fixes": fixes}).Info("jar update")

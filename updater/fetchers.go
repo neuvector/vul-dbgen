@@ -20,7 +20,7 @@ type Fetcher interface {
 }
 
 type AppFetcher interface {
-	FetchUpdate(metadataFetchers map[string]MetadataFetcher, upstream []common.AppModuleVul) (AppFetcherResponse, error)
+	FetchUpdate(metadataFetchers map[string]MetadataFetcher) (AppFetcherResponse, error)
 	Clean()
 }
 

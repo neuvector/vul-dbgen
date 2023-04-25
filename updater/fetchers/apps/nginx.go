@@ -93,6 +93,7 @@ func nginxUpdate() error {
 		modVul.FixedVer = getFixedVersion(fixedVer)
 
 		modVul.VulName = name
+		modVul.AppName = "nginx"
 		modVul.ModuleName = "nginx"
 		modVul.CVEs = []string{name}
 

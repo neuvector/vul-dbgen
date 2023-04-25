@@ -196,6 +196,7 @@ func getCveDetail(cveurl, cve, product, module string) (*common.AppModuleVul, er
 	}
 
 	modVul.VulName = cve
+	modVul.AppName = product
 	modVul.ModuleName = module
 	modVul.Link = cveurl
 	modVul.CVEs = []string{cve}
