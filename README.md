@@ -18,6 +18,7 @@ Generate NeuVector vulnerability database
 | SUSE Linux | https://ftp.suse.com/pub/projects/security/oval/ |
 | Ubuntu | https://launchpad.net/ubuntu-cve-tracker |
 | **Application based** |
+| .NET | https://github.com/advisories, https://www.cvedetails.com/vulnerability-list/vendor_id-26/ |
 | apache | https://www.cvedetails.com/vendor/45/Apache.html |
 | busybox | https://www.cvedetails.com/vulnerability-list/vendor_id-4282/Busybox.html |
 | Java maven | https://github.com/advisories |

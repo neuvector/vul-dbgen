@@ -20,6 +20,7 @@ const (
 	npmDataFile   = "github/npm.data.gz"
 	mavenDataFile = "github/maven.data.gz"
 	pipDataFile   = "github/pip.data.gz"
+	nugetDataFile = "github/nuget.data.gz"
 )
 
 type ghsaData struct {
@@ -64,6 +65,7 @@ func ghsaUpdate() error {
 	loadGHSAData(npmDataFile, "npm", "")
 	loadGHSAData(mavenDataFile, "maven", "")
 	loadGHSAData(pipDataFile, "pip", "python:")
+	loadGHSAData(nugetDataFile, ".NET", ".NET:")
 	return nil
 }
 
