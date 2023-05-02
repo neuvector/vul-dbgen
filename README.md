@@ -21,6 +21,7 @@ Generate NeuVector vulnerability database
 | .NET | https://github.com/advisories, https://www.cvedetails.com/vulnerability-list/vendor_id-26/ |
 | apache | https://www.cvedetails.com/vendor/45/Apache.html |
 | busybox | https://www.cvedetails.com/vulnerability-list/vendor_id-4282/Busybox.html |
+| golang | https://github.com/advisories |
 | Java maven | https://github.com/advisories |
 | Kubernetes | https://kubernetes.io/docs/reference/issues-security/official-cve-feed/ |
 | nginx | http://nginx.org/en/security_advisories.html |

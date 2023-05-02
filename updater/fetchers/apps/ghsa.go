@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	npmDataFile   = "github/npm.data.gz"
-	mavenDataFile = "github/maven.data.gz"
-	pipDataFile   = "github/pip.data.gz"
-	nugetDataFile = "github/nuget.data.gz"
+	npmDataFile    = "github/npm.data.gz"
+	mavenDataFile  = "github/maven.data.gz"
+	pipDataFile    = "github/pip.data.gz"
+	nugetDataFile  = "github/nuget.data.gz"
+	golangDataFile = "github/go.data.gz"
 )
 
 type ghsaData struct {
@@ -66,6 +67,7 @@ func ghsaUpdate() error {
 	loadGHSAData(mavenDataFile, "maven", "")
 	loadGHSAData(pipDataFile, "pip", "python:")
 	loadGHSAData(nugetDataFile, ".NET", ".NET:")
+	loadGHSAData(golangDataFile, "golang", "go:")
 	return nil
 }
 
