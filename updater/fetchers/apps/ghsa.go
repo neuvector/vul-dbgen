@@ -88,7 +88,11 @@ func loadGHSAData(ghsaFile, app, prefix string) error {
 	}
 	defer gzr.Close()
 
+	// Multiple vulnerable versions of one vulnerability are in multiple lines, so we add all
+	// into a map then add them into db
 	var count int
+	vmap := make(map[string]*common.AppModuleVul)
+
 	scanner := bufio.NewScanner(gzr)
 	for scanner.Scan() {
 		var r ghsaData
@@ -97,69 +101,84 @@ func loadGHSAData(ghsaFile, app, prefix string) error {
 			continue
 		}
 
-		modVul := common.AppModuleVul{
-			Description: fmt.Sprintf("%s\n%s\n", r.Advisory.Summary, r.Advisory.Description),
-			AffectedVer: getVersion(r.AffectedVersion),
-			FixedVer:    getVersion(r.PatchedVersion.Identifier),
-			AppName:     app,
-			ModuleName:  fmt.Sprintf("%s%s", prefix, r.Package.Name),
-			Link:        r.Advisory.Link,
-			CVEs:        make([]string, 0),
-			IssuedDate:  r.Advisory.PublishedAt,
-			LastModDate: r.Advisory.UpdatedAt,
-		}
+		var vulName string
+		cves := make([]string, 0)
 
-		severity := strings.ToLower(r.Advisory.Severity)
-		if severity == "high" || severity == "critical" {
-			modVul.Severity = "High"
-		} else if severity == "moderate" {
-			modVul.Severity = "Medium"
-		} else {
-			// log.WithFields(log.Fields{"severity": r.Advisory.Severity}).Error("Unknown severity")
-			continue
-		}
-
-		if r.Advisory.CVSS.Vectors != "" {
-			if strings.HasPrefix(r.Advisory.CVSS.Vectors, "CVSS:3") {
-				modVul.VectorsV3 = r.Advisory.CVSS.Vectors
-				modVul.ScoreV3 = r.Advisory.CVSS.Score
-			} else {
-				modVul.Vectors = r.Advisory.CVSS.Vectors
-				modVul.Score = r.Advisory.CVSS.Score
-			}
-		}
-
-		if len(modVul.FixedVer) == 1 && modVul.FixedVer[0].Version == "0.0.0" {
-			modVul.FixedVer = []common.AppModuleVersion{}
-		}
-
+		// figure out name and versions
 		for _, e := range r.Advisory.Identifiers {
 			if e.Type == "CVE" {
-				modVul.CVEs = append(modVul.CVEs, e.Value)
+				cves = append(cves, e.Value)
 			}
 		}
-		if len(modVul.CVEs) > 0 {
-			modVul.VulName = modVul.CVEs[0]
+
+		if len(cves) > 0 {
+			vulName = cves[0]
 		} else if r.Advisory.GHSAID == "" {
-			modVul.VulName = r.Advisory.CWEs.Nodes[0].CWEID
+			vulName = r.Advisory.CWEs.Nodes[0].CWEID
 		} else {
-			modVul.VulName = r.Advisory.GHSAID
+			vulName = r.Advisory.GHSAID
 		}
 
-		/*
-			if modVul.VulName == "CWE-400" {
-				log.WithFields(log.Fields{"id": cve.ID, "module": cve.ModuleName, "fix": modVul.FixedVer, "affect": modVul.AffectedVer}).Debug()
-				log.WithFields(log.Fields{"create": modVul.IssuedDate, "update": modVul.LastModDate}).Debug()
-			}
-		*/
+		moduleName := fmt.Sprintf("%s%s", prefix, r.Package.Name)
+		affectedVer := getVersion(r.AffectedVersion)
+		fixedVer := getVersion(r.PatchedVersion.Identifier)
+		key := fmt.Sprintf("%s-%s", vulName, moduleName)
 
-		addAppVulMap(&modVul)
-		count++
+		if v, ok := vmap[key]; !ok {
+			v = &common.AppModuleVul{
+				VulName:     vulName,
+				Description: fmt.Sprintf("%s\n%s\n", r.Advisory.Summary, r.Advisory.Description),
+				AffectedVer: affectedVer,
+				FixedVer:    fixedVer,
+				AppName:     app,
+				ModuleName:  moduleName,
+				Link:        r.Advisory.Link,
+				CVEs:        cves,
+				IssuedDate:  r.Advisory.PublishedAt,
+				LastModDate: r.Advisory.UpdatedAt,
+			}
+
+			severity := strings.ToLower(r.Advisory.Severity)
+			if severity == "high" || severity == "critical" {
+				v.Severity = "High"
+			} else if severity == "moderate" {
+				v.Severity = "Medium"
+			} else {
+				// log.WithFields(log.Fields{"severity": r.Advisory.Severity}).Error("Unknown severity")
+				continue
+			}
+
+			if r.Advisory.CVSS.Vectors != "" {
+				if strings.HasPrefix(r.Advisory.CVSS.Vectors, "CVSS:3") {
+					v.VectorsV3 = r.Advisory.CVSS.Vectors
+					v.ScoreV3 = r.Advisory.CVSS.Score
+				} else {
+					v.Vectors = r.Advisory.CVSS.Vectors
+					v.Score = r.Advisory.CVSS.Score
+				}
+			}
+
+			vmap[key] = v
+			count++
+		} else {
+			if len(affectedVer) > 0 && affectedVer[0].OpCode != "" {
+				affectedVer[0].OpCode = "or" + affectedVer[0].OpCode
+				v.AffectedVer = append(v.AffectedVer, affectedVer...)
+			}
+			v.FixedVer = append(v.FixedVer, fixedVer...)
+		}
 	}
 
 	if count == 0 {
 		log.WithFields(log.Fields{"cve": count}).Error()
 		return fmt.Errorf("Unabled to fetch any vulernabilities")
+	}
+
+	for _, v := range vmap {
+		if len(v.FixedVer) == 1 && v.FixedVer[0].Version == "0.0.0" {
+			v.FixedVer = []common.AppModuleVersion{}
+		}
+		addAppVulMap(v)
 	}
 
 	log.WithFields(log.Fields{"source": ghsaFile, "cve": count}).Info()
