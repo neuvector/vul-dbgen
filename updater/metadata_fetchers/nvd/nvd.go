@@ -202,7 +202,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 					return common.ErrCouldNotDownload
 				}
 				retry++
-				log.WithFields(log.Fields{"error": err, "retry": retry}).Debug("Failed to get NVD data")
+				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
 				continue
 			}
 
@@ -211,10 +211,11 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 			if err != nil {
 				if retry == retryTimes {
 					log.Errorf("Failed to read NVD data feed file '%s': %s", dataFeedName, err)
+					log.Errorf("%s", body)
 					return common.ErrCouldNotDownload
 				}
 				retry++
-				log.WithFields(log.Fields{"error": err, "retry": retry}).Debug("Failed to ungzip NVD data")
+				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to ungzip NVD data")
 				continue
 			}
 			jsonData := utils.GunzipBytes(body)
