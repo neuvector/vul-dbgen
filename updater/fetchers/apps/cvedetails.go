@@ -27,9 +27,10 @@ const (
 func cvedetailUpdate() error {
 	var err error
 
-	if err = dotnetUpdate(); err != nil {
-		return err
-	}
+	// Rely on github feed for dotnet
+	// if err = dotnetUpdate(); err != nil {
+	// 	return err
+	// }
 	if err = busyboxUpdate(); err != nil {
 		return err
 	}
