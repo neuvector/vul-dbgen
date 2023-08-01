@@ -88,9 +88,10 @@ func parseAffectedVersion(str string) common.AppModuleVersion {
 func (f *AppFetcher) FetchUpdate(metadataFetchers map[string]updater.MetadataFetcher) (resp updater.AppFetcherResponse, err error) {
 	cveCalibrationLoad()
 
-	if err = cvedetailUpdate(); err != nil {
-		return resp, err
-	}
+	// temporarily disable reading cvedetails site until the feed is available
+	// if err = cvedetailUpdate(); err != nil {
+	// 	return resp, err
+	// }
 	if err = ghsaUpdate(); err != nil {
 		return resp, err
 	}
