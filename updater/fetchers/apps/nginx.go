@@ -22,7 +22,7 @@ func nginxUpdate() error {
 	var affectedVerRegexp = regexp.MustCompile(`<br>Vulnerable: ([0-9a-zA-Z\s\/\.\-,]*)`)
 	var fixedVerRegexp = regexp.MustCompile(`<br>Not vulnerable: ([0-9a-zA-Z\.+\-,\s]*)<br>`)
 	var descriptionRegexp = regexp.MustCompile(`<li><p>(.*)<br>Severity:`)
-	var severityRegexp = regexp.MustCompile(`<br>Severity: <?b?>?(high|major|medium)<?/?b?>?<br>`)
+	var severityRegexp = regexp.MustCompile(`<br>Severity: <?b?>?(high|major|medium|low)<?/?b?>?<br>`)
 	var linkRegexp = regexp.MustCompile(`<a href="(.*)">Advisory`)
 
 	var cveCount int
@@ -77,6 +77,7 @@ func nginxUpdate() error {
 			s := match[0]
 			modVul.Severity = strings.Replace(s[1], "major", "High", -1)
 			modVul.Severity = strings.Replace(modVul.Severity, "medium", "Medium", -1)
+			modVul.Severity = strings.Replace(modVul.Severity, "low", "Low", -1)
 		} else {
 			continue
 		}

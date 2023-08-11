@@ -104,6 +104,8 @@ func opensslUpdate() error {
 			modVul.Severity = "High"
 		} else if severity == "Moderate" {
 			modVul.Severity = "Medium"
+		} else if severity == "Low" {
+			modVul.Severity = "Low"
 		} else {
 			continue
 		}
