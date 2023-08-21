@@ -24,7 +24,7 @@ func init() {
 }
 
 func IgnoreSeverity(s common.Priority) bool {
-	return s != common.Critical && s != common.High && s != common.Medium /* && s != common.Low */
+	return s != common.Critical && s != common.High && s != common.Medium && s != common.Low
 }
 
 // Update fetches all the vulnerabilities from the registered fetchers, upserts
