@@ -149,7 +149,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 			line := scanner.Text()
 			r := rhsaRegexp.FindStringSubmatch(line)
 			if len(r) == 1 {
-				if fn := r[0][1 : len(r[0])-1]; strings.HasPrefix(fn, "rhel-") {
+				if fn := r[0][1 : len(r[0])-1]; strings.HasSuffix(fn, "oval.xml.bz2") {
 					rhsaList = append(rhsaList, fn)
 				}
 			}
