@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 )
 
@@ -37,95 +39,133 @@ const (
 	jsonUrl      = "https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%s.json.gz"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
-	nvdAPIkey             = "NVD_KEY"
-	metadataKey    string = "NVD"
-	retryTimes            = 5
-	timeFormat            = "2006-01-02T15:04Z"
-	resultsPerPage        = 2000
+	metadataKey string = "NVD"
+	retryTimes         = 5
+	timeFormat         = "2006-01-02T15:04Z"
 )
 
 type NVDMetadataFetcher struct {
 	localPath string
 	lock      sync.Mutex
-	nvdkey    *string
 
 	metadata map[string]common.NVDMetadata
 }
 
 type NvdCve struct {
 	Cve struct {
-		ID               string `json:"id"`
-		PublishedDate    string `json:"published"`
-		LastModifiedDate string `json:"lastModified"`
-		VulnStatus       string `json:"vulnStatus"`
-		Description      []struct {
-			Lang  string `json:"lang"`
-			Value string `json:"value"`
-		} `json:"descriptions"`
-		Metrics struct {
-			BaseMetricV31 []struct {
-				CvssData            CvssData `json:"cvssData"`
-				ExploitabilityScore float64  `json:"exploitabilityScore"`
-				ImpactScore         float64  `json:"impactScore"`
-			} `json:"cvssMetricV31"`
-			BaseMetricV3 []struct {
-				CvssData            CvssData `json:"cvssData"`
-				ExploitabilityScore float64  `json:"exploitabilityScore"`
-				ImpactScore         float64  `json:"impactScore"`
-			} `json:"cvssMetricV30"`
-			BaseMetricV2 []struct {
-				Source                  string   `json:"source"`
-				Type                    string   `json:"type"`
-				CvssData                CvssData `json:"cvssData"`
-				Severity                string   `json:"severity"`
-				ExploitabilityScore     float64  `json:"exploitabilityScore"`
-				ImpactScore             float64  `json:"impactScore"`
-				ObtainAllPrivilege      bool     `json:"obtainAllPrivilege"`
-				ObtainUserPrivilege     bool     `json:"obtainUserPrivilege"`
-				ObtainOtherPrivilege    bool     `json:"obtainOtherPrivilege"`
-				UserInteractionRequired bool     `json:"userInteractionRequired"`
-			} `json:"cvssMetricV2"`
-		} `json:"metrics"`
-		References []struct {
-			URL       string `json:"url"`
-			Refsource string `json:"source"`
+		DataType    string `json:"data_type"`
+		DataFormat  string `json:"data_format"`
+		DataVersion string `json:"data_version"`
+		CVEDataMeta struct {
+			ID       string `json:"ID"`
+			ASSIGNER string `json:"ASSIGNER"`
+		} `json:"CVE_data_meta"`
+		Affects struct {
+			Vendor struct {
+				VendorData []struct {
+					VendorName string `json:"vendor_name"`
+					Product    struct {
+						ProductData []struct {
+							ProductName string `json:"product_name"`
+							Version     struct {
+								VersionData []struct {
+									VersionValue    string `json:"version_value"`
+									VersionAffected string `json:"version_affected"`
+								} `json:"version_data"`
+							} `json:"version"`
+						} `json:"product_data"`
+					} `json:"product"`
+				} `json:"vendor_data"`
+			} `json:"vendor"`
+		} `json:"affects"`
+		Problemtype struct {
+			ProblemtypeData []struct {
+				Description []struct {
+					Lang  string `json:"lang"`
+					Value string `json:"value"`
+				} `json:"description"`
+			} `json:"problemtype_data"`
+		} `json:"problemtype"`
+		References struct {
+			ReferenceData []struct {
+				URL       string        `json:"url"`
+				Name      string        `json:"name"`
+				Refsource string        `json:"refsource"`
+				Tags      []interface{} `json:"tags"`
+			} `json:"reference_data"`
 		} `json:"references"`
-		Configurations []struct {
-			Nodes []struct {
-				Operator string `json:"operator"`
-				Negate   bool   `json:"negate"`
-				CpeMatch []struct {
-					Criteria              string `json:"criteria"`
-					MatchCriteriaID       string `json:"matchCriteriaId"`
-					Vulnerable            bool   `json:"vulnerable"`
-					VersionStartIncluding string `json:"versionStartIncluding"`
-					VersionStartExcluding string `json:"versionStartExcluding"`
-					VersionEndIncluding   string `json:"versionEndIncluding"`
-					VersionEndExcluding   string `json:"versionEndExcluding"`
-				} `json:"cpeMatch"`
-			} `json:"nodes"`
-		} `json:"configurations"`
+		Description struct {
+			DescriptionData []struct {
+				Lang  string `json:"lang"`
+				Value string `json:"value"`
+			} `json:"description_data"`
+		} `json:"description"`
 	} `json:"cve"`
+	Configurations struct {
+		CVEDataVersion string `json:"CVE_data_version"`
+		Nodes          []struct {
+			Operator string `json:"operator"`
+			CpeMatch []struct {
+				Vulnerable            bool   `json:"vulnerable"`
+				Cpe23URI              string `json:"cpe23Uri"`
+				VersionStartIncluding string `json:"versionStartIncluding"`
+				VersionStartExcluding string `json:"versionStartExcluding"`
+				VersionEndIncluding   string `json:"versionEndIncluding"`
+				VersionEndExcluding   string `json:"versionEndExcluding"`
+			} `json:"cpe_match"`
+		} `json:"nodes"`
+	} `json:"configurations"`
+	Impact struct {
+		BaseMetricV3 struct {
+			CvssV3 struct {
+				Version               string  `json:"version"`
+				VectorString          string  `json:"vectorString"`
+				AttackVector          string  `json:"attackVector"`
+				AttackComplexity      string  `json:"attackComplexity"`
+				PrivilegesRequired    string  `json:"privilegesRequired"`
+				UserInteraction       string  `json:"userInteraction"`
+				Scope                 string  `json:"scope"`
+				ConfidentialityImpact string  `json:"confidentialityImpact"`
+				IntegrityImpact       string  `json:"integrityImpact"`
+				AvailabilityImpact    string  `json:"availabilityImpact"`
+				BaseScore             float64 `json:"baseScore"`
+				BaseSeverity          string  `json:"baseSeverity"`
+			} `json:"cvssV3"`
+			ExploitabilityScore float64 `json:"exploitabilityScore"`
+			ImpactScore         float64 `json:"impactScore"`
+		} `json:"baseMetricV3"`
+		BaseMetricV2 struct {
+			CvssV2 struct {
+				Version               string  `json:"version"`
+				VectorString          string  `json:"vectorString"`
+				AccessVector          string  `json:"accessVector"`
+				AccessComplexity      string  `json:"accessComplexity"`
+				Authentication        string  `json:"authentication"`
+				ConfidentialityImpact string  `json:"confidentialityImpact"`
+				IntegrityImpact       string  `json:"integrityImpact"`
+				AvailabilityImpact    string  `json:"availabilityImpact"`
+				BaseScore             float64 `json:"baseScore"`
+			} `json:"cvssV2"`
+			Severity                string  `json:"severity"`
+			ExploitabilityScore     float64 `json:"exploitabilityScore"`
+			ImpactScore             float64 `json:"impactScore"`
+			ObtainAllPrivilege      bool    `json:"obtainAllPrivilege"`
+			ObtainUserPrivilege     bool    `json:"obtainUserPrivilege"`
+			ObtainOtherPrivilege    bool    `json:"obtainOtherPrivilege"`
+			UserInteractionRequired bool    `json:"userInteractionRequired"`
+		} `json:"baseMetricV2"`
+	} `json:"impact"`
+	PublishedDate    string `json:"publishedDate"`
+	LastModifiedDate string `json:"lastModifiedDate"`
 }
 
 type NvdData struct {
-	StartIndex        int      `json:"startIndex"`
-	TotalResultsCount int      `json:"totalResults"`
-	CVEItems          []NvdCve `json:"vulnerabilities"`
-	DataFormat        string   `json:"format"`
-	DataVersion       string   `json:"version"`
-}
-
-type CvssData struct {
-	Version               string  `json:"version"`
-	VectorString          string  `json:"vectorString"`
-	AccessVector          string  `json:"accessVector"`
-	AccessComplexity      string  `json:"accessComplexity"`
-	Authentication        string  `json:"authentication"`
-	ConfidentialityImpact string  `json:"confidentialityImpact"`
-	IntegrityImpact       string  `json:"integrityImpact"`
-	AvailabilityImpact    string  `json:"availabilityImpact"`
-	BaseScore             float64 `json:"baseScore"`
+	CVEDataType         string   `json:"CVE_data_type"`
+	CVEDataFormat       string   `json:"CVE_data_format"`
+	CVEDataVersion      string   `json:"CVE_data_version"`
+	CVEDataNumberOfCVEs string   `json:"CVE_data_numberOfCVEs"`
+	CVEDataTimestamp    string   `json:"CVE_data_timestamp"`
+	CVEItems            []NvdCve `json:"CVE_Items"`
 }
 
 func init() {
@@ -135,11 +175,6 @@ func init() {
 func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
-	nvdKey := os.Getenv(nvdAPIkey)
-
-	results := NvdData{}
-	totalResults := 1
-	index := 0
 
 	var err error
 	fetcher.metadata = make(map[string]common.NVDMetadata)
@@ -151,121 +186,104 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 			return common.ErrFilesystem
 		}
 	}
+	defer os.RemoveAll(fetcher.localPath)
 
-	//default rate
-	nvdDelay := time.Second * 6
-
-	for index <= totalResults {
-		newUrl := fmt.Sprintf("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=%d&startIndex=%d", resultsPerPage, index)
-		currentBatch := NvdData{}
-		fmt.Println(newUrl)
-		client := &http.Client{}
+	// Get data feeds.
+	for y := common.FirstYear; y <= time.Now().Year(); y++ {
+		dataFeedName := strconv.Itoa(y)
 
 		retry := 0
 		for retry <= retryTimes {
 			// json
-			request, err := http.NewRequest("GET", newUrl, nil)
-			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
-			}
-			// use faster rate if apikey exists.
-			if nvdKey != "" {
-				request.Header.Set("apiKey", nvdKey)
-				nvdDelay = time.Second
-			}
-
-			result, err := client.Do(request)
-			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
-			}
-			defer result.Body.Close()
+			r, err := http.Get(fmt.Sprintf(jsonUrl, dataFeedName))
 			if err != nil {
 				if retry == retryTimes {
-					log.Errorf("Failed to get NVD json '%s': %s", newUrl, err)
+					log.Errorf("Failed to download NVD data feed file '%s': %s", dataFeedName, err)
 					return common.ErrCouldNotDownload
 				}
 				retry++
 				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
 				continue
 			}
-			err = json.NewDecoder(result.Body).Decode(&currentBatch)
+
+			// Un-gzip it.
+			body, err := ioutil.ReadAll(r.Body)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad unmarshal")
-			}
-			if index == 0 {
-				results = currentBatch
-				totalResults = results.TotalResultsCount
-			} else {
-				results.CVEItems = append(results.CVEItems, currentBatch.CVEItems...)
-			}
-			index += resultsPerPage
-			time.Sleep(nvdDelay)
-			break
-		}
-
-	}
-	for index, cve := range results.CVEItems {
-		if index%2000 == 0 {
-			log.WithFields(log.Fields{"index": index}).Debug("Index finished")
-		}
-		var meta common.NVDMetadata
-		if len(cve.Cve.Description) > 0 {
-			meta.Description = cve.Cve.Description[0].Value
-		}
-		if cve.Cve.ID != "" {
-			//Prefer CVSS31 over CVSS30 if it exists.
-			if len(cve.Cve.Metrics.BaseMetricV31) > 0 && cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore != 0 {
-				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV31[0].CvssData.VectorString
-				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore
-			} else if len(cve.Cve.Metrics.BaseMetricV3) > 0 && cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore != 0 {
-				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
-				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
-			}
-			if len(cve.Cve.Metrics.BaseMetricV31) > 0 && cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV31[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore
-			} else if len(cve.Cve.Metrics.BaseMetricV3) > 0 && cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
-			}
-			if cve.Cve.PublishedDate != "" {
-				if t, err := time.Parse(timeFormat, cve.Cve.PublishedDate); err == nil {
-					meta.PublishedDate = t
+				if retry == retryTimes {
+					log.Errorf("Failed to read NVD data feed file '%s': %s", dataFeedName, err)
+					log.Errorf("%s", body)
+					return common.ErrCouldNotDownload
 				}
+				retry++
+				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to ungzip NVD data")
+				continue
 			}
-			if cve.Cve.LastModifiedDate != "" {
-				if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
-					meta.LastModifiedDate = t
-				}
-			}
+			jsonData := utils.GunzipBytes(body)
 
-			meta.VulnVersions = make([]common.NVDvulnerableVersion, 0)
-			if len(cve.Cve.Configurations) > 0 {
-				for _, node := range cve.Cve.Configurations[0].Nodes {
-					if node.Operator == "OR" && len(node.CpeMatch) > 0 {
-						for _, m := range node.CpeMatch {
-							if m.Vulnerable &&
-								// TODO: explicitly ignore microsoft:visual_studio_, as it is often confused with .net core version
-								!strings.Contains(m.Criteria, "microsoft:visual_studio_") &&
-								(m.VersionStartIncluding != "" ||
-									m.VersionStartExcluding != "" ||
-									m.VersionEndIncluding != "" ||
-									m.VersionEndExcluding != "") {
-								meta.VulnVersions = append(meta.VulnVersions, common.NVDvulnerableVersion{
-									StartIncluding: m.VersionStartIncluding,
-									StartExcluding: m.VersionStartExcluding,
-									EndIncluding:   m.VersionEndIncluding,
-									EndExcluding:   m.VersionEndExcluding,
-								})
+			var nvdData NvdData
+			err = json.Unmarshal(jsonData, &nvdData)
+			if err != nil {
+				log.Errorf("Failed to unmarshal NVD data feed file '%s': %s", dataFeedName, err)
+				return common.ErrCouldNotDownload
+			}
+			for _, cve := range nvdData.CVEItems {
+				var meta common.NVDMetadata
+				if len(cve.Cve.Description.DescriptionData) > 0 {
+					meta.Description = cve.Cve.Description.DescriptionData[0].Value
+				}
+				if cve.Cve.CVEDataMeta.ID != "" {
+					if cve.Impact.BaseMetricV3.CvssV3.BaseScore != 0 {
+						meta.CVSSv3.Vectors = cve.Impact.BaseMetricV3.CvssV3.VectorString
+						meta.CVSSv3.Score = cve.Impact.BaseMetricV3.CvssV3.BaseScore
+					}
+					if cve.Impact.BaseMetricV2.CvssV2.BaseScore != 0 {
+						meta.CVSSv2.Vectors = cve.Impact.BaseMetricV2.CvssV2.VectorString
+						meta.CVSSv2.Score = cve.Impact.BaseMetricV2.CvssV2.BaseScore
+					}
+					if cve.PublishedDate != "" {
+						if t, err := time.Parse(timeFormat, cve.PublishedDate); err == nil {
+							meta.PublishedDate = t
+						}
+					}
+					if cve.LastModifiedDate != "" {
+						if t, err := time.Parse(timeFormat, cve.LastModifiedDate); err == nil {
+							meta.LastModifiedDate = t
+						}
+					}
+
+					meta.VulnVersions = make([]common.NVDvulnerableVersion, 0)
+					for _, node := range cve.Configurations.Nodes {
+						if node.Operator == "OR" && len(node.CpeMatch) > 0 {
+							for _, m := range node.CpeMatch {
+								if m.Vulnerable &&
+									// TODO: explicitly ignore microsoft:visual_studio_, as it is often confused with .net core version
+									!strings.Contains(m.Cpe23URI, "microsoft:visual_studio_") &&
+									(m.VersionStartIncluding != "" ||
+										m.VersionStartExcluding != "" ||
+										m.VersionEndIncluding != "" ||
+										m.VersionEndExcluding != "") {
+									meta.VulnVersions = append(meta.VulnVersions, common.NVDvulnerableVersion{
+										StartIncluding: m.VersionStartIncluding,
+										StartExcluding: m.VersionStartExcluding,
+										EndIncluding:   m.VersionEndIncluding,
+										EndExcluding:   m.VersionEndExcluding,
+									})
+								}
 							}
 						}
 					}
+
+					fetcher.metadata[cve.Cve.CVEDataMeta.ID] = meta
+
+					// log.WithFields(log.Fields{"cve": cve.Cve.CVEDataMeta.ID, "v3": meta.CVSSv3.Score}).Info()
 				}
 			}
 
-			fetcher.metadata[cve.Cve.ID] = meta
+			log.WithFields(log.Fields{"year": dataFeedName, "count": len(nvdData.CVEItems)}).Info()
+			break
 		}
 	}
+
 	return nil
 }
 
