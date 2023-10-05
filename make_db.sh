@@ -2,4 +2,4 @@
 
 echo "==> Making dbgen"
 make || exit $?
-NVD_KEY=$NVD_KEY ./dbgen -v $VULN_VER
+./dbgen -v $VULN_VER
