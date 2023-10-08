@@ -152,6 +152,9 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 				if fn := r[0][1 : len(r[0])-1]; strings.HasPrefix(fn, "rhel-") {
 					rhsaList = append(rhsaList, fn)
 				}
+				if fn := r[0][1 : len(r[0])-1]; strings.HasPrefix(fn, "rhsso-") {
+					rhsaList = append(rhsaList, fn)
+				}
 			}
 		}
 
