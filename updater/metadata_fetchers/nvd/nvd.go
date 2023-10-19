@@ -41,6 +41,7 @@ const (
 	metadataKey    string = "NVD"
 	retryTimes            = 5
 	timeFormat            = "2006-01-02T15:04Z"
+	timeFormatNew         = "2006-01-02T15:04:05"
 	resultsPerPage        = 2000
 )
 
@@ -229,12 +230,18 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
 			}
 			if cve.Cve.PublishedDate != "" {
-				if t, err := time.Parse(timeFormat, cve.Cve.PublishedDate); err == nil {
+				//Use new format, try old format if parse fails.
+				if t, err := time.Parse(timeFormatNew, cve.Cve.LastModifiedDate); err == nil {
+					meta.PublishedDate = t
+				} else if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
 					meta.PublishedDate = t
 				}
 			}
 			if cve.Cve.LastModifiedDate != "" {
-				if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
+				//Use new format, try old format if parse fails.
+				if t, err := time.Parse(timeFormatNew, cve.Cve.LastModifiedDate); err == nil {
+					meta.LastModifiedDate = t
+				} else if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
 					meta.LastModifiedDate = t
 				}
 			}
