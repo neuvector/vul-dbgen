@@ -121,9 +121,7 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 
 	// Collect vulnerabilities.
 	for _, v := range vulns {
-		if !updater.IgnoreSeverity(v.Severity) {
-			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-		}
+		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 	}
 	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching mariner done")
 	return resp, nil

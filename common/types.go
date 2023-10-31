@@ -100,7 +100,7 @@ type AppModuleVul struct {
 	Vectors       string             `json:"VV2"`
 	ScoreV3       float64            `json:"SC3"`
 	VectorsV3     string             `json:"VV3"`
-	Severity      string             `json:"SE"`
+	Severity      Priority           `json:"SE"`
 	AffectedVer   []AppModuleVersion `json:"AV"`
 	FixedVer      []AppModuleVersion `json:"FV"`
 	UnaffectedVer []AppModuleVersion `json:"UV",omitempty`

@@ -148,9 +148,7 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 
 		// Collect vulnerabilities.
 		for _, v := range vs {
-			if !updater.IgnoreSeverity(v.Severity) {
-				resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-			}
+			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 		}
 
 		// Pause to prevent the website from blacklisting us.

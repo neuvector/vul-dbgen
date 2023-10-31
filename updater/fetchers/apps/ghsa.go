@@ -140,11 +140,11 @@ func loadGHSAData(ghsaFile, app, prefix string) error {
 
 			severity := strings.ToLower(r.Advisory.Severity)
 			if severity == "high" || severity == "critical" {
-				v.Severity = "High"
+				v.Severity = common.High
 			} else if severity == "moderate" {
-				v.Severity = "Medium"
+				v.Severity = common.Medium
 			} else if severity == "low" {
-				v.Severity = "Low"
+				v.Severity = common.Low
 			} else {
 				// log.WithFields(log.Fields{"severity": r.Advisory.Severity}).Error("Unknown severity")
 				continue

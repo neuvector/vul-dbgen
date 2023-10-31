@@ -189,9 +189,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 					if err == nil {
 						// Collect vulnerabilities.
 						for _, v := range vs {
-							if !updater.IgnoreSeverity(v.Severity) {
-								resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-							}
+							resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 						}
 						break
 					}
@@ -437,8 +435,8 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []up
 				}
 				vulnerability.CVEs = append(vulnerability.CVEs, updater.CVE{
 					Name:   r.ID,
-					CVSSv2: updater.CVSS{Vectors: v2, Score: s2},
-					CVSSv3: updater.CVSS{Vectors: v3, Score: s3},
+					CVSSv2: common.CVSS{Vectors: v2, Score: s2},
+					CVSSv3: common.CVSS{Vectors: v3, Score: s3},
 				})
 			}
 			if vulnerability.IssuedDate.IsZero() {

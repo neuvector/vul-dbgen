@@ -20,7 +20,7 @@ type Fetcher interface {
 }
 
 type AppFetcher interface {
-	FetchUpdate(metadataFetchers map[string]MetadataFetcher) (AppFetcherResponse, error)
+	FetchUpdate() (AppFetcherResponse, error)
 	Clean()
 }
 
@@ -28,8 +28,6 @@ type RawFetcher interface {
 	FetchUpdate() (RawFetcherResponse, error)
 	Clean()
 }
-
-type MetadataMap map[string]interface{}
 
 type Feature struct {
 	Name      string
@@ -43,15 +41,10 @@ type FeatureVersion struct {
 	MinVer  common.Version
 }
 
-type CVSS struct {
-	Vectors string
-	Score   float64
-}
-
 type CVE struct {
 	Name   string
-	CVSSv2 CVSS
-	CVSSv3 CVSS
+	CVSSv2 common.CVSS
+	CVSSv3 common.CVSS
 }
 
 type Vulnerability struct {
@@ -61,11 +54,11 @@ type Vulnerability struct {
 	Description string
 	Link        string
 	Severity    common.Priority
-	CVEs        []CVE
+	CVSSv2      common.CVSS
+	CVSSv3      common.CVSS
 	IssuedDate  time.Time
 	LastModDate time.Time
-
-	Metadata MetadataMap
+	CVEs        []CVE
 
 	FixedIn    []FeatureVersion
 	CPEs       []string
@@ -77,7 +70,7 @@ type FetcherResponse struct {
 }
 
 type AppFetcherResponse struct {
-	Vulnerabilities []common.AppModuleVul
+	Vulnerabilities []*common.AppModuleVul
 }
 
 type RawFetcherResponse struct {

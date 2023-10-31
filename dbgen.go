@@ -21,7 +21,6 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/rhel2"
 	_ "github.com/vul-dbgen/updater/fetchers/suse"
 	_ "github.com/vul-dbgen/updater/fetchers/ubuntu"
-	_ "github.com/vul-dbgen/updater/metadata_fetchers/nvd"
 )
 
 func usage() {

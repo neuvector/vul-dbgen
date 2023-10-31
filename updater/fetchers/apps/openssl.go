@@ -101,11 +101,11 @@ func opensslUpdate() error {
 		modVul.Link = link
 		modVul.Score = 0
 		if severity == "Critical" || severity == "High" {
-			modVul.Severity = "High"
+			modVul.Severity = common.High
 		} else if severity == "Moderate" {
-			modVul.Severity = "Medium"
+			modVul.Severity = common.Medium
 		} else if severity == "Low" {
-			modVul.Severity = "Low"
+			modVul.Severity = common.Low
 		} else {
 			continue
 		}

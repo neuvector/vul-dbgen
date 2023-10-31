@@ -161,12 +161,7 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				// In the JSON, a vulnerability has one urgency per package it affects.
 				// The highest urgency should be the one set.
 				urgency := urgencyToSeverity(releaseNode.Urgency)
-				if updater.IgnoreSeverity(urgency) && urgency != common.Unknown {
-					continue
-				}
-				if urgency != common.Unknown {
-					vulnerability.FeedRating = releaseNode.Urgency
-				}
+				vulnerability.FeedRating = releaseNode.Urgency
 				if urgency.Compare(vulnerability.Severity) > 0 {
 					vulnerability.Severity = urgency
 				}

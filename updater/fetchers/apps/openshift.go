@@ -13,7 +13,7 @@ func openshiftUpdate() error {
 		Description: "A flaw has been detected in kubernetes which allows privilege escalation and access to sensitive information in OpenShift products and services.  This issue has been assigned CVE-2018-1002105 and has a security impact of Critical.",
 		Link:        "https://access.redhat.com/security/vulnerabilities/3716411",
 		Score:       9.8,
-		Severity:    "High",
+		Severity:    common.High,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "lt", Version: "3.2.1.34-2,3.2"},
 			common.AppModuleVersion{OpCode: "orlt", Version: "3.11.43-1,3.11"},
@@ -50,7 +50,7 @@ func openshiftUpdate() error {
 		Description: "A flaw was found in Kubernetes via the mishandling of symlinks when copying files from a running container. An attacker could exploit this by convincing a user to use `kubectl cp` or `oc cp` with a malicious container, allowing for arbitrary files to be overwritten on the host machine.",
 		Link:        "https://access.redhat.com/security/cve/cve-2019-1002101",
 		Score:       5.3,
-		Severity:    "Medium",
+		Severity:    common.Medium,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "lt", Version: "3.11.99,3.11"},
 			common.AppModuleVersion{OpCode: "orlt", Version: "3.10.99,3.10"},
@@ -68,7 +68,7 @@ func openshiftUpdate() error {
 		Description: "A security issue was discovered in kube-apiserver that could allow node updates to bypass a Validating Admission Webhook. You are only affected by this vulnerability if you run a Validating Admission Webhook for Nodes that denies admission based at least partially on the old state of the Node object.",
 		ScoreV3:     6.5,
 		VectorsV3:   "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:H/A:H",
-		Severity:    "Medium",
+		Severity:    common.Medium,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "gteq", Version: "1.0"},
 			common.AppModuleVersion{OpCode: "andlteq", Version: "1.18.17"},
@@ -91,7 +91,7 @@ func openshiftUpdate() error {
 		Description: "A security issue was discovered in Kubernetes where a user may be able to create a container with subpath volume mounts to access files & directories outside of the volume, including on the host filesystem.",
 		ScoreV3:     8.8,
 		VectorsV3:   "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
-		Severity:    "High",
+		Severity:    common.High,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "gteq", Version: "1.0"},
 			common.AppModuleVersion{OpCode: "andlteq", Version: "1.19.14"},
@@ -119,7 +119,7 @@ func openshiftUpdate() error {
 		Score:       6.0,
 		VectorsV3:   "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:L",
 		Vectors:     "AV:N/AC:M/Au:S/C:P/I:P/A:P",
-		Severity:    "Medium",
+		Severity:    common.Medium,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "gteq", Version: "1.0"},
 			common.AppModuleVersion{OpCode: "andlteq", Version: "1.22.0"},

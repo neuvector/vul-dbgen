@@ -137,13 +137,12 @@ func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 			return resp, err
 		}
 
-		if !updater.IgnoreSeverity(v.Severity) {
-			// Add the vulnerability to the response.
-			upstreamCalibration(&v)
-			if len(v.FixedIn) > 0 {
-				resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-			}
+		// Add the vulnerability to the response.
+		upstreamCalibration(&v)
+		if len(v.FixedIn) > 0 {
+			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 		}
+
 		// Store any unknown releases as notes.
 		for k := range unknownReleases {
 			note := fmt.Sprintf("Ubuntu %s is not mapped to any version number (eg. trusty->14.04). Please update me.", k)

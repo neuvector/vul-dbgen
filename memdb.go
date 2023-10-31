@@ -13,28 +13,28 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
-	"github.com/vul-dbgen/share"
 )
 
 type memDB struct {
 	keyVer   common.KeyVersion
 	tbPath   string
 	tmpPath  string
-	vuls     map[string]common.VulFull
-	appVuls  []common.AppModuleVul
-	rawFiles []updater.RawFile
+	osVuls   map[string]*common.VulFull
+	appVuls  []*common.AppModuleVul
+	rawFiles []*updater.RawFile
 }
 
 func newMemDb(path string) (*memDB, error) {
 	var db memDB
-	db.vuls = make(map[string]common.VulFull, 0)
+	db.osVuls = make(map[string]*common.VulFull, 0)
 	db.keyVer.Keys = make(map[string]string, 0)
 	db.keyVer.Shas = make(map[string]string, 0)
 	return &db, nil
 }
 
-func vulToShort(v common.VulFull) common.VulShort {
+func vulToShort(v *common.VulFull) *common.VulShort {
 	var vs = common.VulShort{
 		Name:      v.Name,
 		Namespace: v.Namespace,
@@ -47,10 +47,10 @@ func vulToShort(v common.VulFull) common.VulShort {
 		f.MinVer = ft.MinVer
 		vs.Fixin = append(vs.Fixin, f)
 	}
-	return vs
+	return &vs
 }
 
-func modVulToVulFull(v updater.Vulnerability) common.VulFull {
+func modVulToVulFull(v *updater.Vulnerability) *common.VulFull {
 	var vv1 common.VulFull
 	vv1.Name = v.Name
 	vv1.Namespace = v.Namespace
@@ -63,16 +63,12 @@ func modVulToVulFull(v updater.Vulnerability) common.VulFull {
 	for i, cve := range v.CVEs {
 		vv1.CVEs[i] = cve.Name
 	}
-	if k, ok := v.Metadata["NVD"]; ok {
-		if c, ok := k.(common.NVDMetadata); ok {
-			vv1.CVSSv2 = c.CVSSv2
-			vv1.CVSSv3 = c.CVSSv3
-		}
-	}
+	vv1.CVSSv2 = v.CVSSv2
+	vv1.CVSSv3 = v.CVSSv3
 	vv1.IssuedDate = v.IssuedDate
 	vv1.LastModDate = v.LastModDate
 
-	return vv1
+	return &vv1
 }
 
 func modFeaToFeaFull(fx updater.FeatureVersion) common.FeaFull {
@@ -86,11 +82,11 @@ func modFeaToFeaFull(fx updater.FeatureVersion) common.FeaFull {
 }
 
 func splitDb(db *memDB, dbs *dbSpace) bool {
-	if db.vuls == nil {
+	if db.osVuls == nil {
 		return false
 	}
 
-	for _, v := range db.vuls {
+	for _, v := range db.osVuls {
 		var buf *dbBuffer
 		for i := 0; i < dbMax; i++ {
 			if strings.Contains(v.Namespace, dbs.buffers[i].namespace) {
@@ -192,7 +188,7 @@ func (db *memDB) UpdateDb(version string) bool {
 		return false
 	}
 
-	log.WithFields(log.Fields{"vuls": len(db.vuls), "appVuls": len(db.appVuls)}).Info()
+	log.WithFields(log.Fields{"vuls": len(db.osVuls), "appVuls": len(db.appVuls)}).Info()
 
 	var compactDB common.DBFile
 	var regularDB common.DBFile
@@ -283,15 +279,15 @@ func memdbOpen(path string) (*memDB, error) {
 	return db, dbErr
 }
 
-func (db *memDB) InsertVulnerabilities(vuls []updater.Vulnerability, appVuls []common.AppModuleVul, rawFiles []updater.RawFile) error {
-	for _, v := range vuls {
+func (db *memDB) InsertVulnerabilities(osVuls []*updater.Vulnerability, appVuls []*common.AppModuleVul, rawFiles []*updater.RawFile) error {
+	for _, v := range osVuls {
 		vv1 := modVulToVulFull(v)
 		for _, fx := range v.FixedIn {
 			v1fx := modFeaToFeaFull(fx)
 			vv1.FixedIn = append(vv1.FixedIn, v1fx)
 		}
 		cveName := fmt.Sprintf("%s:%s", vv1.Namespace, vv1.Name)
-		db.vuls[cveName] = vv1
+		db.osVuls[cveName] = vv1
 	}
 	db.appVuls = appVuls
 
@@ -306,7 +302,7 @@ func (db *memDB) InsertVulnerabilities(vuls []updater.Vulnerability, appVuls []c
 			}
 		}
 		if !found {
-			db.rawFiles = append(db.rawFiles, updater.RawFile{Name: name, Raw: make([]byte, 0)})
+			db.rawFiles = append(db.rawFiles, &updater.RawFile{Name: name, Raw: make([]byte, 0)})
 		}
 	}
 
