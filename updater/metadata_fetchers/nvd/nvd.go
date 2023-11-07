@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -46,9 +45,8 @@ const (
 )
 
 type NVDMetadataFetcher struct {
-	localPath string
-	lock      sync.Mutex
-	nvdkey    *string
+	lock   sync.Mutex
+	nvdkey *string
 
 	metadata map[string]common.NVDMetadata
 }
@@ -142,16 +140,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 	totalResults := 1
 	index := 0
 
-	var err error
 	fetcher.metadata = make(map[string]common.NVDMetadata)
-
-	// Init if necessary.
-	if fetcher.localPath == "" {
-		// Create a temporary folder to store the NVD data and create hashes struct.
-		if fetcher.localPath, err = ioutil.TempDir(os.TempDir(), "nvd-data"); err != nil {
-			return common.ErrFilesystem
-		}
-	}
 
 	//default rate
 	nvdDelay := time.Second * 6
@@ -159,7 +148,6 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 	for index <= totalResults {
 		newUrl := fmt.Sprintf("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=%d&startIndex=%d", resultsPerPage, index)
 		currentBatch := NvdData{}
-		fmt.Println(newUrl)
 		client := &http.Client{}
 
 		retry := 0
@@ -167,7 +155,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 			// json
 			request, err := http.NewRequest("GET", newUrl, nil)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
+				log.WithFields(log.Fields{"err": err}).Error("Error retrieving from url")
 			}
 			// use faster rate if apikey exists.
 			if nvdKey != "" {
@@ -177,22 +165,20 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 
 			result, err := client.Do(request)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
-			}
-			defer result.Body.Close()
-			if err != nil {
 				if retry == retryTimes {
 					log.Errorf("Failed to get NVD json '%s': %s", newUrl, err)
 					return common.ErrCouldNotDownload
 				}
 				retry++
 				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
+				result.Body.Close()
 				continue
 			}
 			err = json.NewDecoder(result.Body).Decode(&currentBatch)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad unmarshal")
+				log.WithFields(log.Fields{"err": err}).Error("Error during unmarshal")
 			}
+			result.Body.Close()
 			if index == 0 {
 				results = currentBatch
 				totalResults = results.TotalResultsCount
@@ -205,10 +191,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 		}
 
 	}
-	for index, cve := range results.CVEItems {
-		if index%2000 == 0 {
-			log.WithFields(log.Fields{"index": index}).Debug("Index finished")
-		}
+	for _, cve := range results.CVEItems {
 		var meta common.NVDMetadata
 		if len(cve.Cve.Description) > 0 {
 			meta.Description = cve.Cve.Description[0].Value
@@ -427,14 +410,11 @@ func (fetcher *NVDMetadataFetcher) Unload() {
 	defer fetcher.lock.Unlock()
 
 	fetcher.metadata = nil
-	os.RemoveAll(fetcher.localPath)
 }
 
 func (fetcher *NVDMetadataFetcher) Clean() {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
-
-	os.RemoveAll(fetcher.localPath)
 }
 
 func getHashFromMetaURL(metaURL string) (string, error) {
