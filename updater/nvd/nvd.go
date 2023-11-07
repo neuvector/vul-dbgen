@@ -16,6 +16,7 @@ package nvd
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -35,6 +36,7 @@ const (
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
 	nvdAPIkey      = "NVD_KEY"
+	nvdSubfolder   = "nvd"
 	retryTimes     = 5
 	timeFormat     = "2006-01-02T15:04Z"
 	timeFormatNew  = "2006-01-02T15:04:05"
@@ -42,9 +44,8 @@ const (
 )
 
 type NVDMetadataFetcher struct {
-	localPath string
-	lock      sync.Mutex
-	nvdkey    *string
+	lock   sync.Mutex
+	nvdkey *string
 
 	metadata map[string]common.NVDMetadata
 }
@@ -127,25 +128,47 @@ type CvssData struct {
 
 var NVD NVDMetadataFetcher
 
-func (fetcher *NVDMetadataFetcher) Load() error {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-	nvdKey := os.Getenv(nvdAPIkey)
+func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, error) {
+	var results, cur NvdData
 
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".json.gz") {
+			log.WithFields(log.Fields{"file": f.Name()}).Debug("Read NVD data")
+
+			rfp, err := os.Open(fmt.Sprintf("%s/%s", folder, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+			gzr, err := gzip.NewReader(rfp)
+			if err != nil {
+				rfp.Close()
+				return nil, err
+			}
+
+			log.WithFields(log.Fields{"file": f.Name()}).Debug("Read NVD data")
+			data, _ := ioutil.ReadAll(gzr)
+			json.Unmarshal(data, &cur)
+			results.CVEItems = append(results.CVEItems, cur.CVEItems...)
+
+			gzr.Close()
+			rfp.Close()
+		}
+	}
+
+	return &results, nil
+}
+
+func (fetcher *NVDMetadataFetcher) LoadRemote() (*NvdData, error) {
+	nvdKey := os.Getenv(nvdAPIkey)
 	results := NvdData{}
 	totalResults := 1
 	index := 0
 
-	var err error
 	fetcher.metadata = make(map[string]common.NVDMetadata)
-
-	// Init if necessary.
-	if fetcher.localPath == "" {
-		// Create a temporary folder to store the NVD data and create hashes struct.
-		if fetcher.localPath, err = ioutil.TempDir(os.TempDir(), "nvd-data"); err != nil {
-			return common.ErrFilesystem
-		}
-	}
 
 	//default rate
 	nvdDelay := time.Second * 6
@@ -161,7 +184,7 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 			// json
 			request, err := http.NewRequest("GET", newUrl, nil)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
+				log.WithFields(log.Fields{"error": err}).Error("Error in retrieving from url")
 			}
 			// use faster rate if apikey exists.
 			if nvdKey != "" {
@@ -169,40 +192,57 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 				nvdDelay = time.Second
 			}
 
-			result, err := client.Do(request)
+			resp, err := client.Do(request)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad")
-			}
-			defer result.Body.Close()
-			if err != nil {
+				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
 				if retry == retryTimes {
 					log.Errorf("Failed to get NVD json '%s': %s", newUrl, err)
-					return common.ErrCouldNotDownload
+					return nil, err
 				}
 				retry++
-				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
-				continue
-			}
-			err = json.NewDecoder(result.Body).Decode(&currentBatch)
-			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error in newLoad unmarshal")
-			}
-			if index == 0 {
-				results = currentBatch
-				totalResults = results.TotalResultsCount
 			} else {
-				results.CVEItems = append(results.CVEItems, currentBatch.CVEItems...)
+				err = json.NewDecoder(resp.Body).Decode(&currentBatch)
+				if err != nil {
+					log.WithFields(log.Fields{"error": err}).Error("Error in during unmarshal")
+				} else {
+					if index == 0 {
+						results = currentBatch
+						totalResults = results.TotalResultsCount
+					} else {
+						results.CVEItems = append(results.CVEItems, currentBatch.CVEItems...)
+					}
+					index += resultsPerPage
+				}
+				time.Sleep(nvdDelay)
+				resp.Body.Close()
+				break
 			}
-			index += resultsPerPage
-			time.Sleep(nvdDelay)
-			break
 		}
-
 	}
-	for index, cve := range results.CVEItems {
-		if index%2000 == 0 {
-			log.WithFields(log.Fields{"index": index}).Debug("Index finished")
-		}
+
+	return &results, nil
+}
+
+func (fetcher *NVDMetadataFetcher) Load() error {
+	fetcher.lock.Lock()
+	defer fetcher.lock.Unlock()
+
+	var results *NvdData
+	var err error
+
+	nvdFolder := fmt.Sprintf("%s/%s", common.CVESourceRoot, nvdSubfolder)
+	if _, err = os.Stat(nvdFolder); os.IsNotExist(err) {
+		results, err = fetcher.LoadRemote()
+	} else {
+		results, err = fetcher.LoadPreDownload(nvdFolder)
+	}
+	if err != nil {
+		log.WithFields(log.Fields{"error": err}).Error()
+		return common.ErrCouldNotDownload
+	}
+
+	fetcher.metadata = make(map[string]common.NVDMetadata)
+	for _, cve := range results.CVEItems {
 		var meta common.NVDMetadata
 		if len(cve.Cve.Description) > 0 {
 			meta.Description = cve.Cve.Description[0].Value
@@ -261,6 +301,14 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 							}
 						}
 					}
+				}
+			}
+
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(cve.Cve.ID) {
+					log.WithFields(log.Fields{
+						"name": cve.Cve.ID, "v2": meta.CVSSv2.Score, "v3": meta.CVSSv3.Score,
+					}).Debug("DEBUG")
 				}
 			}
 
@@ -329,14 +377,11 @@ func (fetcher *NVDMetadataFetcher) Unload() {
 	defer fetcher.lock.Unlock()
 
 	fetcher.metadata = nil
-	os.RemoveAll(fetcher.localPath)
 }
 
 func (fetcher *NVDMetadataFetcher) Clean() {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
-
-	os.RemoveAll(fetcher.localPath)
 }
 
 func getCveDescription(cve string) string {

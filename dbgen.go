@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/vul-dbgen/common"
 	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 	_ "github.com/vul-dbgen/updater/fetchers/alpine"
@@ -29,6 +31,26 @@ func usage() {
 	os.Exit(2)
 }
 
+func parseDebugFilters(s string, debugs *common.DebugFilter) {
+	debugs.Enabled = true
+	debugs.CVEs = utils.NewSet()
+
+	tokens := strings.Split(s, ",")
+	for _, token := range tokens {
+		kvs := strings.Split(token, "=")
+		if len(kvs) >= 2 {
+			switch kvs[0] {
+			case "v":
+				vuls := strings.Split(kvs[1], ",")
+				for _, v := range vuls {
+					debugs.CVEs.Add(v)
+				}
+				log.WithFields(log.Fields{"vuls": debugs.CVEs}).Debug("vulnerability filter")
+			}
+		}
+	}
+}
+
 func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
@@ -36,6 +58,7 @@ func main() {
 
 	version := flag.String("v", "0.90", "cve database version")
 	dbPath := flag.String("d", "", "cve database path")
+	debug := flag.String("debug", "", "debug filters")
 	flag.Usage = usage
 	flag.Parse()
 
@@ -43,6 +66,10 @@ func main() {
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("Parse version fail")
 		os.Exit(2)
+	}
+
+	if *debug != "" {
+		parseDebugFilters(*debug, &common.Debugs)
 	}
 
 	done := make(chan bool, 1)

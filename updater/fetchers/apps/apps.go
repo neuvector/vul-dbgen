@@ -15,7 +15,7 @@ import (
 )
 
 // Must not use pointer, some modules use the same object
-var vulMap map[string]common.AppModuleVul = make(map[string]common.AppModuleVul)
+var vulMap map[string]*common.AppModuleVul = make(map[string]*common.AppModuleVul)
 var vulCache utils.Set = utils.NewSet()
 var cveCalibrate map[string][]common.AppModuleVersion = make(map[string][]common.AppModuleVersion)
 
@@ -28,7 +28,7 @@ func init() {
 
 func addAppVulMap(mv *common.AppModuleVul) {
 	key := fmt.Sprintf("%s:%s", mv.ModuleName, mv.VulName)
-	vulMap[key] = *mv
+	vulMap[key] = mv
 }
 
 func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) {
@@ -73,7 +73,15 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 			}
 		}
 
-		resp.Vulnerabilities = append(resp.Vulnerabilities, &mv)
+		if common.Debugs.Enabled {
+			if common.Debugs.CVEs.Contains(mv.VulName) {
+				log.WithFields(log.Fields{
+					"name": mv.VulName, "severity": mv.Severity, "v2": mv.Score, "v3": mv.ScoreV3,
+				}).Debug("DEBUG")
+			}
+		}
+
+		resp.Vulnerabilities = append(resp.Vulnerabilities, mv)
 	}
 
 	return resp, err

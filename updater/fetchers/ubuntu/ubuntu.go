@@ -89,7 +89,7 @@ func init() {
 func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 	log.Info("fetching Ubuntu vulnerabilities")
 
-	dbDir := fmt.Sprintf("%s%s", updater.CVESourceRoot, ubuntuFolder)
+	dbDir := fmt.Sprintf("%s%s", common.CVESourceRoot, ubuntuFolder)
 	if info, err := os.Stat(dbDir); err == nil && info.IsDir() {
 		log.Debug("Use local Ubuntu database")
 		fetcher.repositoryLocalPath = dbDir

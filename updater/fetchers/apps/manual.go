@@ -8,7 +8,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 const appManualFolder = "app-manual/"
@@ -44,8 +43,8 @@ func manualUpdate() error {
 	var cveCount int
 
 	for _, fn := range []string{
-		fmt.Sprintf("%s%s%s", updater.CVESourceRoot, appManualFolder, "busybox.db"),
-		fmt.Sprintf("%s%s%s", updater.CVESourceRoot, appManualFolder, "toomcat.db"),
+		fmt.Sprintf("%s%s%s", common.CVESourceRoot, appManualFolder, "busybox.db"),
+		fmt.Sprintf("%s%s%s", common.CVESourceRoot, appManualFolder, "toomcat.db"),
 	} {
 		file, err := os.Open(fn)
 		if err != nil {

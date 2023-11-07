@@ -8,8 +8,16 @@ import (
 
 const CompactCVEDBName = "cvedb.compact"
 const RegularCVEDBName = "cvedb.regular"
+const CVESourceRoot = "vul-source/"
 
 const RHELCpeMapFile = "rhel-cpe.map"
+
+type DebugFilter struct {
+	Enabled bool
+	CVEs    utils.Set
+}
+
+var Debugs DebugFilter
 
 type NVDMetadata struct {
 	Description      string `json:"description,omitempty"`

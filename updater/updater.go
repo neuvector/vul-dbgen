@@ -12,8 +12,6 @@ import (
 const (
 	flagName      = "updater/last"
 	notesFlagName = "updater/notes"
-
-	CVESourceRoot = "vul-source/"
 )
 
 type RawFile struct {
@@ -288,6 +286,14 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 		}
 
 		for _, cve := range cves {
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(cve) {
+					log.WithFields(log.Fields{
+						"name": cve, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3,
+					}).Debug("DEBUG: pre distro")
+				}
+			}
+
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve.Name]; ok {
 				enrichDistroMeta(meta, v, &cve)
@@ -311,7 +317,20 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 	}
 
 	for _, app := range apps {
-		for _, cve := range app.CVEs {
+		cves := []string{app.VulName}
+		if len(app.CVEs) > 0 {
+			cves = append(cves, app.CVEs...)
+		}
+
+		for _, cve := range cves {
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(cve) {
+					log.WithFields(log.Fields{
+						"name": app.VulName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
+					}).Debug("DEBUG: pre app")
+				}
+			}
+
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve]; ok {
 				enrichAppMeta(meta, app)
@@ -369,12 +388,25 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 
 		if !IgnoreSeverity(v.Severity) {
 			outVuls = append(outVuls, v)
+
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(v.Name) {
+					log.WithFields(log.Fields{
+						"name": v.Name, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3,
+					}).Debug("DEBUG: post distro")
+				}
+			}
 		}
 	}
 
 	for _, app := range apps {
+		cves := []string{app.VulName}
+		if len(app.CVEs) > 0 {
+			cves = append(cves, app.CVEs...)
+		}
+
 		var maxCVSSv3, maxCVSSv2 common.CVSS
-		for _, cve := range app.CVEs {
+		for _, cve := range cves {
 			if meta, ok := cveMap[cve]; ok {
 				if app.IssuedDate.IsZero() {
 					app.IssuedDate = meta.PublishedDate
@@ -401,6 +433,14 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 
 		if !IgnoreSeverity(app.Severity) {
 			outApps = append(outApps, app)
+
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(app.VulName) {
+					log.WithFields(log.Fields{
+						"name": app.VulName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
+					}).Debug("DEBUG: post app")
+				}
+			}
 		}
 	}
 

@@ -108,7 +108,7 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 	var reader io.Reader
 
 	//Load file
-	file, err := os.Open(fmt.Sprintf("%s/%s/%s", updater.CVESourceRoot, marinerFolder, marinerFile))
+	file, err := os.Open(fmt.Sprintf("%s/%s/%s", common.CVESourceRoot, marinerFolder, marinerFile))
 	if err != nil {
 		return resp, err
 	}

@@ -126,7 +126,7 @@ func (f *SuseFetcher) fetchOvalData(o *ovalInfo) (updater.FetcherResponse, error
 
 	var resp updater.FetcherResponse
 
-	fullname := fmt.Sprintf("%s%s", updater.CVESourceRoot, o.filename)
+	fullname := fmt.Sprintf("%s%s", common.CVESourceRoot, o.filename)
 	file, err := os.Open(fullname)
 	if err != nil {
 		log.WithFields(log.Fields{"file": o.filename}).Error("Failed to open the feed file")

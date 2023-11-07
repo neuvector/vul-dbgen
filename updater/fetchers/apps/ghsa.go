@@ -13,7 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 const (
@@ -72,7 +71,7 @@ func ghsaUpdate() error {
 }
 
 func loadGHSAData(ghsaFile, app, prefix string) error {
-	dataFile := fmt.Sprintf("%s%s", updater.CVESourceRoot, ghsaFile)
+	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, ghsaFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
 		log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")

@@ -106,7 +106,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 
 	vulns := make([]updater.Vulnerability, 0)
 
-	fullname := fmt.Sprintf("%s%s", updater.CVESourceRoot, o.filename)
+	fullname := fmt.Sprintf("%s%s", common.CVESourceRoot, o.filename)
 	file, err := os.Open(fullname)
 	if err != nil {
 		log.WithFields(log.Fields{"file": o.filename}).Error("Failed to open the feed file")
