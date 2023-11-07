@@ -176,7 +176,6 @@ func (fetcher *NVDMetadataFetcher) LoadRemote() (*NvdData, error) {
 	for index <= totalResults {
 		newUrl := fmt.Sprintf("https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=%d&startIndex=%d", resultsPerPage, index)
 		currentBatch := NvdData{}
-		fmt.Println(newUrl)
 		client := &http.Client{}
 
 		retry := 0
