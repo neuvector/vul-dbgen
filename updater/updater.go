@@ -205,12 +205,13 @@ func parseAffectedVersion(str string) common.AppModuleVersion {
 	return mv
 }
 
+// The meta map keeps the NVD score or score from other feeds
 func enrichAppMeta(meta *common.NVDMetadata, v *common.AppModuleVul) {
-	if v.ScoreV3 > meta.CVSSv3.Score {
+	if meta.CVSSv3.Score == 0 {
 		meta.CVSSv3.Score = v.ScoreV3
 		meta.CVSSv3.Vectors = v.VectorsV3
 	}
-	if v.Score > meta.CVSSv2.Score {
+	if meta.CVSSv2.Score == 0 {
 		meta.CVSSv2.Score = v.Score
 		meta.CVSSv2.Vectors = v.Vectors
 	}
@@ -223,10 +224,10 @@ func enrichAppMeta(meta *common.NVDMetadata, v *common.AppModuleVul) {
 }
 
 func enrichDistroMeta(meta *common.NVDMetadata, v *Vulnerability, cve *CVE) {
-	if cve.CVSSv3.Score > meta.CVSSv3.Score {
+	if meta.CVSSv3.Score == 0 {
 		meta.CVSSv3 = cve.CVSSv3
 	}
-	if cve.CVSSv2.Score > meta.CVSSv2.Score {
+	if meta.CVSSv2.Score == 0 {
 		meta.CVSSv2 = cve.CVSSv2
 	}
 	if meta.PublishedDate.IsZero() {
@@ -352,7 +353,7 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 		}
 	}
 
-	// second loop, assign the best score to the record
+	// second loop, assign the severity and score to the record
 	outVuls := make([]*Vulnerability, 0)
 	outApps := make([]*common.AppModuleVul, 0)
 
@@ -362,7 +363,9 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 			cves = v.CVEs
 		}
 
-		var maxCVSSv3, maxCVSSv2 common.CVSS
+		// Use the score from the feed if available
+		cvss3 := v.CVSSv3
+		cvss2 := v.CVSSv2
 		for _, cve := range cves {
 			if meta, ok := cveMap[cve.Name]; ok {
 				if v.IssuedDate.IsZero() {
@@ -371,20 +374,20 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 				if v.LastModDate.IsZero() {
 					v.LastModDate = meta.LastModifiedDate
 				}
-				if maxCVSSv3.Score < meta.CVSSv3.Score {
-					maxCVSSv3 = meta.CVSSv3
+				if cvss3.Score == 0 {
+					cvss3 = meta.CVSSv3
 				}
-				if maxCVSSv2.Score < meta.CVSSv2.Score {
-					maxCVSSv2 = meta.CVSSv2
+				if cvss2.Score == 0 {
+					cvss2 = meta.CVSSv2
 				}
 			}
 		}
 
-		severity := fixSeverityScore(v.Severity, &maxCVSSv2, &maxCVSSv3)
+		severity := fixSeverityScore(v.Severity, &cvss2, &cvss3)
 
 		v.Severity = severity
-		v.CVSSv3 = maxCVSSv3
-		v.CVSSv2 = maxCVSSv2
+		v.CVSSv3 = cvss3
+		v.CVSSv2 = cvss2
 
 		if !IgnoreSeverity(v.Severity) {
 			outVuls = append(outVuls, v)
@@ -405,7 +408,9 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 			cves = append(cves, app.CVEs...)
 		}
 
-		var maxCVSSv3, maxCVSSv2 common.CVSS
+		// Use the score from the feed if available
+		cvss3 := common.CVSS{Vectors: app.VectorsV3, Score: app.ScoreV3}
+		cvss2 := common.CVSS{Vectors: app.Vectors, Score: app.Score}
 		for _, cve := range cves {
 			if meta, ok := cveMap[cve]; ok {
 				if app.IssuedDate.IsZero() {
@@ -414,22 +419,22 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 				if app.LastModDate.IsZero() {
 					app.LastModDate = meta.LastModifiedDate
 				}
-				if maxCVSSv3.Score < meta.CVSSv3.Score {
-					maxCVSSv3 = meta.CVSSv3
+				if cvss3.Score == 0 {
+					cvss3 = meta.CVSSv3
 				}
-				if maxCVSSv2.Score < meta.CVSSv2.Score {
-					maxCVSSv2 = meta.CVSSv2
+				if cvss2.Score == 0 {
+					cvss2 = meta.CVSSv2
 				}
 			}
 		}
 
-		severity := fixSeverityScore(app.Severity, &maxCVSSv2, &maxCVSSv3)
+		severity := fixSeverityScore(app.Severity, &cvss2, &cvss3)
 
 		app.Severity = severity
-		app.ScoreV3 = maxCVSSv3.Score
-		app.VectorsV3 = maxCVSSv3.Vectors
-		app.Score = maxCVSSv2.Score
-		app.Vectors = maxCVSSv2.Vectors
+		app.ScoreV3 = cvss3.Score
+		app.VectorsV3 = cvss3.Vectors
+		app.Score = cvss2.Score
+		app.Vectors = cvss2.Vectors
 
 		if !IgnoreSeverity(app.Severity) {
 			outApps = append(outApps, app)
