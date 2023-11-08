@@ -161,7 +161,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 		r.Body.Close()
 
 		for i, rhsa := range rhsaList {
-			var vs []updater.Vulnerability
+			var vs []common.Vulnerability
 			// Download the RHSA's XML file.
 			retry := 0
 			for retry <= retryTimes {
@@ -216,7 +216,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 	return resp, nil
 }
 
-func isDuplicateFeatureVersion(obja updater.FeatureVersion, objb updater.FeatureVersion) bool {
+func isDuplicateFeatureVersion(obja common.FeatureVersion, objb common.FeatureVersion) bool {
 	if obja.Name == objb.Name &&
 		obja.Feature.Name == objb.Feature.Name &&
 		obja.Feature.Namespace == objb.Feature.Namespace {
@@ -225,7 +225,7 @@ func isDuplicateFeatureVersion(obja updater.FeatureVersion, objb updater.Feature
 	return false
 }
 
-func cullAllVulns(respVuln []updater.Vulnerability) []updater.Vulnerability {
+func cullAllVulns(respVuln []common.Vulnerability) []common.Vulnerability {
 	allVulns := makeCveMap(respVuln)
 	rhsamap, cveMap, rhsas := getRHSACVEs(allVulns)
 	cullVulns(rhsamap, cveMap)
@@ -235,7 +235,7 @@ func cullAllVulns(respVuln []updater.Vulnerability) []updater.Vulnerability {
 		cveMap[key] = val
 	}
 
-	remainingVulns := make([]updater.Vulnerability, 0)
+	remainingVulns := make([]common.Vulnerability, 0)
 	for _, val := range cveMap {
 		remainingVulns = append(remainingVulns, val)
 	}
@@ -243,8 +243,8 @@ func cullAllVulns(respVuln []updater.Vulnerability) []updater.Vulnerability {
 	return result
 }
 
-func makeCveMap(allVulns []updater.Vulnerability) map[string]updater.Vulnerability {
-	cveMap := make(map[string]updater.Vulnerability)
+func makeCveMap(allVulns []common.Vulnerability) map[string]common.Vulnerability {
+	cveMap := make(map[string]common.Vulnerability)
 
 	for _, vuln := range allVulns {
 		key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
@@ -280,10 +280,10 @@ func makeCveMap(allVulns []updater.Vulnerability) map[string]updater.Vulnerabili
 }
 
 //getRHSACVEs returns a map of all CVE names to the matching RHSA entries.
-func getRHSACVEs(fullVulns map[string]updater.Vulnerability) (map[string][]updater.Vulnerability, map[string]updater.Vulnerability, map[string]updater.Vulnerability) {
-	result := make(map[string][]updater.Vulnerability)
-	cves := make(map[string]updater.Vulnerability)
-	rhsas := make(map[string]updater.Vulnerability)
+func getRHSACVEs(fullVulns map[string]common.Vulnerability) (map[string][]common.Vulnerability, map[string]common.Vulnerability, map[string]common.Vulnerability) {
+	result := make(map[string][]common.Vulnerability)
+	cves := make(map[string]common.Vulnerability)
+	rhsas := make(map[string]common.Vulnerability)
 
 	for _, vuln := range fullVulns {
 		if strings.Contains(strings.ToLower(vuln.Name), "rhsa") {
@@ -295,7 +295,7 @@ func getRHSACVEs(fullVulns map[string]updater.Vulnerability) (map[string][]updat
 				if _, ok := result[key]; !ok {
 					//if the data exists, initialize the slice
 					if _, ok := fullVulns[key]; ok {
-						result[key] = []updater.Vulnerability{vuln}
+						result[key] = []common.Vulnerability{vuln}
 					}
 					continue
 				}
@@ -316,7 +316,7 @@ func getRHSACVEs(fullVulns map[string]updater.Vulnerability) (map[string][]updat
 	return result, cves, rhsas
 }
 
-func cullVulns(rhsamap map[string][]updater.Vulnerability, cvemap map[string]updater.Vulnerability) {
+func cullVulns(rhsamap map[string][]common.Vulnerability, cvemap map[string]common.Vulnerability) {
 	for cvekey, vuln := range cvemap {
 		key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
 		remainingFeatures := vuln.FixedIn
@@ -338,8 +338,8 @@ func cullVulns(rhsamap map[string][]updater.Vulnerability, cvemap map[string]upd
 }
 
 //removeMatchingFeatures removes entries in entryA that match an entry in entryB
-func removeMatchingFeatures(entryA []updater.FeatureVersion, entryB []updater.FeatureVersion) []updater.FeatureVersion {
-	result := make([]updater.FeatureVersion, 0)
+func removeMatchingFeatures(entryA []common.FeatureVersion, entryB []common.FeatureVersion) []common.FeatureVersion {
+	result := make([]common.FeatureVersion, 0)
 	foundFeatures := make(map[string]bool)
 	for _, entry := range entryB {
 		foundFeatures[entry.Feature.Name] = true
@@ -353,7 +353,7 @@ func removeMatchingFeatures(entryA []updater.FeatureVersion, entryB []updater.Fe
 	return result
 }
 
-func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []updater.Vulnerability, err error) {
+func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []common.Vulnerability, err error) {
 	// Decode the XML.
 	var ov oval
 	err = xml.NewDecoder(ovalReader).Decode(&ov)
@@ -398,7 +398,7 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []up
 
 		pkgs := toFeatureVersions(ros, rhsa, nameId, definition.Criteria)
 		if len(pkgs) > 0 {
-			vulnerability := updater.Vulnerability{
+			vulnerability := common.Vulnerability{
 				Name:        nameId,
 				Namespace:   "centos" + ":" + strconv.Itoa(ros),
 				Link:        link(definition),
@@ -433,7 +433,7 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []up
 						v3 = r.Cvss3[s+1:]
 					}
 				}
-				vulnerability.CVEs = append(vulnerability.CVEs, updater.CVE{
+				vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
 					Name:   r.ID,
 					CVSSv2: common.CVSS{Vectors: v2, Score: s2},
 					CVSSv3: common.CVSS{Vectors: v3, Score: s3},
@@ -527,15 +527,15 @@ func getPossibilities(cvename string, node criteria) [][]criterion {
 	return possibilities
 }
 
-func toFeatureVersions(ros int, rhsa, cvename string, criteria criteria) []updater.FeatureVersion {
+func toFeatureVersions(ros int, rhsa, cvename string, criteria criteria) []common.FeatureVersion {
 	// There are duplicates in Red Hat .xml files.
 	// This map is for deduplication.
-	featureVersionParameters := make(map[string]updater.FeatureVersion)
+	featureVersionParameters := make(map[string]common.FeatureVersion)
 
 	possibilities := getPossibilities(cvename, criteria)
 	for _, criterions := range possibilities {
 		var (
-			featureVersion updater.FeatureVersion
+			featureVersion common.FeatureVersion
 			osVersion      int = ros
 			err            error
 		)
@@ -602,7 +602,7 @@ func toFeatureVersions(ros int, rhsa, cvename string, criteria criteria) []updat
 	}
 
 	// Convert the map to slice.
-	var featureVersionParametersArray []updater.FeatureVersion
+	var featureVersionParametersArray []common.FeatureVersion
 	for _, fv := range featureVersionParameters {
 		featureVersionParametersArray = append(featureVersionParametersArray, fv)
 	}

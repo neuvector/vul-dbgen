@@ -12,13 +12,6 @@ const CVESourceRoot = "vul-source/"
 
 const RHELCpeMapFile = "rhel-cpe.map"
 
-type DebugFilter struct {
-	Enabled bool
-	CVEs    utils.Set
-}
-
-var Debugs DebugFilter
-
 type NVDMetadata struct {
 	Description      string `json:"description,omitempty"`
 	CVSSv2           CVSS
@@ -115,6 +108,49 @@ type AppModuleVul struct {
 	IssuedDate    time.Time          `json:"Issue"`
 	LastModDate   time.Time          `json:"LastMod"`
 	CVEs          []string           `json:"-"`
+}
+
+// ---
+
+type Feature struct {
+	Name      string
+	Namespace string
+}
+
+type FeatureVersion struct {
+	Name    string
+	Feature Feature
+	Version Version
+	MinVer  Version
+}
+
+type CVE struct {
+	Name   string
+	CVSSv2 CVSS
+	CVSSv3 CVSS
+}
+
+type Vulnerability struct {
+	Name      string
+	Namespace string
+
+	Description string
+	Link        string
+	Severity    Priority
+	CVSSv2      CVSS
+	CVSSv3      CVSS
+	IssuedDate  time.Time
+	LastModDate time.Time
+	CVEs        []CVE
+
+	FixedIn    []FeatureVersion
+	CPEs       []string
+	FeedRating string
+}
+
+type RawFile struct {
+	Name string
+	Raw  []byte
 }
 
 // ---

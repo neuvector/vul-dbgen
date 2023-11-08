@@ -115,7 +115,7 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	r.Body.Close()
 
 	for i, elsa := range elsaList {
-		var vs []updater.Vulnerability
+		var vs []common.Vulnerability
 
 		retry := 0
 		for retry <= retryTimes {
@@ -166,7 +166,7 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	return resp, nil
 }
 
-func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []updater.Vulnerability, err error) {
+func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []common.Vulnerability, err error) {
 	// Decode the XML.
 	var ov oval
 	err = xml.NewDecoder(ovalReader).Decode(&ov)
@@ -183,7 +183,7 @@ func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []updater.Vul
 
 		pkgs := toFeatureVersions(nameId, definition.Criteria)
 		if len(pkgs) > 0 {
-			vulnerability := updater.Vulnerability{
+			vulnerability := common.Vulnerability{
 				Name:        nameId,
 				Link:        link(definition),
 				Severity:    severity(definition),
@@ -201,7 +201,7 @@ func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []updater.Vul
 				vulnerability.FixedIn = append(vulnerability.FixedIn, p)
 			}
 			for _, r := range definition.Cves {
-				vulnerability.CVEs = append(vulnerability.CVEs, updater.CVE{
+				vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
 					Name: r.ID,
 				})
 			}
@@ -293,13 +293,13 @@ func getPossibilities(cvename string, node criteria) [][]criterion {
 	return possibilities
 }
 
-func toFeatureVersions(cvename string, criteria criteria) []updater.FeatureVersion {
-	featureVersionParameters := make(map[string]updater.FeatureVersion)
+func toFeatureVersions(cvename string, criteria criteria) []common.FeatureVersion {
+	featureVersionParameters := make(map[string]common.FeatureVersion)
 
 	possibilities := getPossibilities(cvename, criteria)
 	for _, criterions := range possibilities {
 		var (
-			featureVersion updater.FeatureVersion
+			featureVersion common.FeatureVersion
 			osVersion      int
 			err            error
 		)
@@ -342,7 +342,7 @@ func toFeatureVersions(cvename string, criteria criteria) []updater.FeatureVersi
 	}
 
 	// Convert the map to slice.
-	var featureVersionParametersArray []updater.FeatureVersion
+	var featureVersionParametersArray []common.FeatureVersion
 	for _, fv := range featureVersionParameters {
 		featureVersionParametersArray = append(featureVersionParametersArray, fv)
 	}

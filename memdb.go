@@ -14,7 +14,6 @@ import (
 
 	"github.com/vul-dbgen/common"
 	utils "github.com/vul-dbgen/share"
-	"github.com/vul-dbgen/updater"
 )
 
 type memDB struct {
@@ -23,7 +22,7 @@ type memDB struct {
 	tmpPath  string
 	osVuls   map[string]*common.VulFull
 	appVuls  []*common.AppModuleVul
-	rawFiles []*updater.RawFile
+	rawFiles []*common.RawFile
 }
 
 func newMemDb(path string) (*memDB, error) {
@@ -50,7 +49,7 @@ func vulToShort(v *common.VulFull) *common.VulShort {
 	return &vs
 }
 
-func modVulToVulFull(v *updater.Vulnerability) *common.VulFull {
+func modVulToVulFull(v *common.Vulnerability) *common.VulFull {
 	var vv1 common.VulFull
 	vv1.Name = v.Name
 	vv1.Namespace = v.Namespace
@@ -71,7 +70,7 @@ func modVulToVulFull(v *updater.Vulnerability) *common.VulFull {
 	return &vv1
 }
 
-func modFeaToFeaFull(fx updater.FeatureVersion) common.FeaFull {
+func modFeaToFeaFull(fx common.FeatureVersion) common.FeaFull {
 	var v1fx = common.FeaFull{
 		Name:      fx.Feature.Name,
 		Namespace: fx.Feature.Namespace,
@@ -279,7 +278,7 @@ func memdbOpen(path string) (*memDB, error) {
 	return db, dbErr
 }
 
-func (db *memDB) InsertVulnerabilities(osVuls []*updater.Vulnerability, appVuls []*common.AppModuleVul, rawFiles []*updater.RawFile) error {
+func (db *memDB) InsertVulnerabilities(osVuls []*common.Vulnerability, appVuls []*common.AppModuleVul, rawFiles []*common.RawFile) error {
 	for _, v := range osVuls {
 		vv1 := modVulToVulFull(v)
 		for _, fx := range v.FixedIn {
@@ -302,7 +301,7 @@ func (db *memDB) InsertVulnerabilities(osVuls []*updater.Vulnerability, appVuls 
 			}
 		}
 		if !found {
-			db.rawFiles = append(db.rawFiles, &updater.RawFile{Name: name, Raw: make([]byte, 0)})
+			db.rawFiles = append(db.rawFiles, &common.RawFile{Name: name, Raw: make([]byte, 0)})
 		}
 	}
 

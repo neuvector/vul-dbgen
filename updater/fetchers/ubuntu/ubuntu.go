@@ -275,7 +275,7 @@ func collectModifiedVulnerabilities(revision int, dbRevision, repositoryLocalPat
 	return modifiedCVE, nil
 }
 
-func parseUbuntuCVE(fileContent io.Reader) (vulnerability updater.Vulnerability, unknownReleases map[string]struct{}, err error) {
+func parseUbuntuCVE(fileContent io.Reader) (vulnerability common.Vulnerability, unknownReleases map[string]struct{}, err error) {
 	unknownReleases = make(map[string]struct{})
 	readingDescription := false
 	scanner := bufio.NewScanner(fileContent)
@@ -381,8 +381,8 @@ func parseUbuntuCVE(fileContent io.Reader) (vulnerability updater.Vulnerability,
 				}
 
 				// Create and add the new package.
-				featureVersion := updater.FeatureVersion{
-					Feature: updater.Feature{
+				featureVersion := common.FeatureVersion{
+					Feature: common.Feature{
 						Namespace: "ubuntu:" + common.UbuntuReleasesMapping[md["release"]],
 						Name:      md["package"],
 					},
@@ -442,9 +442,9 @@ var calibrateMap = map[string]feactureShort{
 	"CVE-2017-16995":   {Name: "", Version: "4.14.8"},
 }
 
-func upstreamCalibration(v *updater.Vulnerability) {
+func upstreamCalibration(v *common.Vulnerability) {
 	// skip openssl in upstream
-	var newFix []updater.FeatureVersion
+	var newFix []common.FeatureVersion
 	for _, fx := range v.FixedIn {
 		if !strings.Contains(fx.Feature.Namespace, "upstream") {
 			newFix = append(newFix, fx)

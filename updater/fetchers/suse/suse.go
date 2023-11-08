@@ -145,6 +145,8 @@ func (f *SuseFetcher) fetchOvalData(o *ovalInfo) (updater.FetcherResponse, error
 
 	// Collect vulnerabilities.
 	for _, v := range vs {
+		common.DEBUG_SEVERITY(&v, "suse")
+
 		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 	}
 
@@ -157,9 +159,9 @@ func (f *SuseFetcher) fetchOvalData(o *ovalInfo) (updater.FetcherResponse, error
 	return resp, nil
 }
 
-func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, error) {
+func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error) {
 	var ov ovalFeed
-	var vulnerabilities []updater.Vulnerability
+	var vulnerabilities []common.Vulnerability
 
 	err := xml.NewDecoder(ovalReader).Decode(&ov)
 	if err != nil {
@@ -194,7 +196,7 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, erro
 		pkgs := parsePackageVersions(o, cvename, definition.Criteria, testMap)
 
 		if len(pkgs) > 0 {
-			vulnerability := updater.Vulnerability{
+			vulnerability := common.Vulnerability{
 				Name:        cvename,
 				Link:        link(definition),
 				Severity:    severity(definition),
@@ -212,7 +214,7 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]updater.Vulnerability, erro
 				vulnerability.FixedIn = append(vulnerability.FixedIn, p)
 			}
 			for _, r := range definition.Cves {
-				vulnerability.CVEs = append(vulnerability.CVEs, updater.CVE{
+				vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
 					Name: r.ID,
 				})
 			}
@@ -330,12 +332,12 @@ func parseTestFeatureVersion(t *test) *testInfo {
 	return nil
 }
 
-func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMap map[string]*testInfo) []updater.FeatureVersion {
-	fvMap := make(map[string]updater.FeatureVersion)
+func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMap map[string]*testInfo) []common.FeatureVersion {
+	fvMap := make(map[string]common.FeatureVersion)
 
 	possibilities := getPossibilities(cvename, criteria)
 	for _, criterions := range possibilities {
-		var fv updater.FeatureVersion
+		var fv common.FeatureVersion
 
 		// Attempt to parse package data from trees of criterions.
 		for _, c := range criterions {
@@ -373,7 +375,7 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 	}
 
 	// Convert the map to slice.
-	var fvList []updater.FeatureVersion
+	var fvList []common.FeatureVersion
 	for _, fv := range fvMap {
 		fvList = append(fvList, fv)
 	}

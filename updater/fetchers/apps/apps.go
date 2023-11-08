@@ -73,13 +73,7 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 			}
 		}
 
-		if common.Debugs.Enabled {
-			if common.Debugs.CVEs.Contains(mv.VulName) {
-				log.WithFields(log.Fields{
-					"name": mv.VulName, "severity": mv.Severity, "v2": mv.Score, "v3": mv.ScoreV3,
-				}).Debug("DEBUG")
-			}
-		}
+		common.DEBUG_SEVERITY(mv, "app")
 
 		resp.Vulnerabilities = append(resp.Vulnerabilities, mv)
 	}

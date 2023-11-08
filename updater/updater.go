@@ -14,11 +14,6 @@ const (
 	notesFlagName = "updater/notes"
 )
 
-type RawFile struct {
-	Name string
-	Raw  []byte
-}
-
 func IgnoreSeverity(s common.Priority) bool {
 	return s != common.Critical && s != common.High && s != common.Medium && s != common.Low
 }
@@ -51,7 +46,7 @@ func Update(datastore Datastore) bool {
 
 const cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
-func xslateUbuntuUpstream(vuls []Vulnerability) []common.AppModuleVul {
+func xslateUbuntuUpstream(vuls []common.Vulnerability) []common.AppModuleVul {
 	upstream := make([]common.AppModuleVul, 0)
 	for _, v := range vuls {
 		if v.Namespace == "ubuntu:upstream" {
@@ -72,7 +67,7 @@ func xslateUbuntuUpstream(vuls []Vulnerability) []common.AppModuleVul {
 	return upstream
 }
 
-func fetchDistroVul() (bool, []*Vulnerability) {
+func fetchDistroVul() (bool, []*common.Vulnerability) {
 	log.Info()
 
 	status := true
@@ -94,7 +89,7 @@ func fetchDistroVul() (bool, []*Vulnerability) {
 	}
 
 	// Collect results of updates.
-	var vuls []*Vulnerability
+	var vuls []*common.Vulnerability
 	for i := 0; i < len(fetchers); i++ {
 		resp := <-responseC
 		if resp != nil {
@@ -149,11 +144,11 @@ func correctAppAffectedVersion(appVuls []*common.AppModuleVul) {
 	}
 }
 
-func fetchRawData() (bool, []*RawFile) {
+func fetchRawData() (bool, []*common.RawFile) {
 	log.Info()
 
 	status := true
-	var rawFiles []*RawFile
+	var rawFiles []*common.RawFile
 	var responseR = make(chan *RawFetcherResponse, 0)
 
 	for n, f := range rawFetchers {
@@ -174,7 +169,7 @@ func fetchRawData() (bool, []*RawFile) {
 	for i := 0; i < len(rawFetchers); i++ {
 		resp := <-responseR
 		if resp != nil {
-			rawFiles = append(rawFiles, &RawFile{Name: resp.Name, Raw: resp.Raw})
+			rawFiles = append(rawFiles, &common.RawFile{Name: resp.Name, Raw: resp.Raw})
 		}
 	}
 
@@ -223,7 +218,7 @@ func enrichAppMeta(meta *common.NVDMetadata, v *common.AppModuleVul) {
 	}
 }
 
-func enrichDistroMeta(meta *common.NVDMetadata, v *Vulnerability, cve *CVE) {
+func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *common.CVE) {
 	if meta.CVSSv3.Score == 0 {
 		meta.CVSSv3 = cve.CVSSv3
 	}
@@ -274,26 +269,20 @@ func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common
 	return severity
 }
 
-func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vulnerability, []*common.AppModuleVul) {
+func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) ([]*common.Vulnerability, []*common.AppModuleVul) {
 	cveMap := make(map[string]*common.NVDMetadata)
 
 	// Use two loops to cross-reference metadata provided by all feeds and nvd
 
 	// first loop, for each cve merge meta with NVD
 	for _, v := range vuls {
-		cves := []CVE{CVE{Name: v.Name}}
+		cves := []common.CVE{common.CVE{Name: v.Name}}
 		if len(v.CVEs) > 0 {
 			cves = v.CVEs
 		}
 
 		for _, cve := range cves {
-			if common.Debugs.Enabled {
-				if common.Debugs.CVEs.Contains(cve) {
-					log.WithFields(log.Fields{
-						"name": cve, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3,
-					}).Debug("DEBUG: pre distro")
-				}
-			}
+			common.DEBUG_SEVERITY(v, "pre distro")
 
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve.Name]; ok {
@@ -324,13 +313,7 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 		}
 
 		for _, cve := range cves {
-			if common.Debugs.Enabled {
-				if common.Debugs.CVEs.Contains(cve) {
-					log.WithFields(log.Fields{
-						"name": app.VulName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
-					}).Debug("DEBUG: pre app")
-				}
-			}
+			common.DEBUG_SEVERITY(app, "pre app")
 
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve]; ok {
@@ -354,11 +337,11 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 	}
 
 	// second loop, assign the severity and score to the record
-	outVuls := make([]*Vulnerability, 0)
+	outVuls := make([]*common.Vulnerability, 0)
 	outApps := make([]*common.AppModuleVul, 0)
 
 	for _, v := range vuls {
-		cves := []CVE{CVE{Name: v.Name}}
+		cves := []common.CVE{common.CVE{Name: v.Name}}
 		if len(v.CVEs) > 0 {
 			cves = v.CVEs
 		}
@@ -392,13 +375,7 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 		if !IgnoreSeverity(v.Severity) {
 			outVuls = append(outVuls, v)
 
-			if common.Debugs.Enabled {
-				if common.Debugs.CVEs.Contains(v.Name) {
-					log.WithFields(log.Fields{
-						"name": v.Name, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3,
-					}).Debug("DEBUG: post distro")
-				}
-			}
+			common.DEBUG_SEVERITY(v, "post distro")
 		}
 	}
 
@@ -439,13 +416,7 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 		if !IgnoreSeverity(app.Severity) {
 			outApps = append(outApps, app)
 
-			if common.Debugs.Enabled {
-				if common.Debugs.CVEs.Contains(app.VulName) {
-					log.WithFields(log.Fields{
-						"name": app.VulName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
-					}).Debug("DEBUG: post app")
-				}
-			}
+			common.DEBUG_SEVERITY(app, "post app")
 		}
 	}
 
@@ -453,7 +424,7 @@ func assignMetadata(vuls []*Vulnerability, apps []*common.AppModuleVul) ([]*Vuln
 }
 
 // fetch get data from the registered fetchers, in parallel.
-func fetch(datastore Datastore) (bool, []*Vulnerability, []*common.AppModuleVul, []*RawFile) {
+func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppModuleVul, []*common.RawFile) {
 	status := true
 
 	status, osVuls := fetchDistroVul()
@@ -483,12 +454,12 @@ func fetch(datastore Datastore) (bool, []*Vulnerability, []*common.AppModuleVul,
 	return status, vuls, apps, rawFiles
 }
 
-func doVulnerabilitiesNamespacing(vulnerabilities []Vulnerability) []*Vulnerability {
-	vulnerabilitiesMap := make(map[string]*Vulnerability)
+func doVulnerabilitiesNamespacing(vulnerabilities []common.Vulnerability) []*common.Vulnerability {
+	vulnerabilitiesMap := make(map[string]*common.Vulnerability)
 
 	for _, v := range vulnerabilities {
 		featureVersions := v.FixedIn
-		v.FixedIn = []FeatureVersion{}
+		v.FixedIn = []common.FeatureVersion{}
 
 		for _, fv := range featureVersions {
 			index := fv.Feature.Namespace + ":" + v.Name
@@ -496,7 +467,7 @@ func doVulnerabilitiesNamespacing(vulnerabilities []Vulnerability) []*Vulnerabil
 			if vulnerability, ok := vulnerabilitiesMap[index]; !ok {
 				newVulnerability := v
 				newVulnerability.Namespace = fv.Feature.Namespace
-				newVulnerability.FixedIn = []FeatureVersion{fv}
+				newVulnerability.FixedIn = []common.FeatureVersion{fv}
 
 				vulnerabilitiesMap[index] = &newVulnerability
 			} else {
@@ -506,7 +477,7 @@ func doVulnerabilitiesNamespacing(vulnerabilities []Vulnerability) []*Vulnerabil
 	}
 
 	// Convert map into a slice.
-	var response []*Vulnerability
+	var response []*common.Vulnerability
 	for _, vulnerability := range vulnerabilitiesMap {
 		response = append(response, vulnerability)
 	}

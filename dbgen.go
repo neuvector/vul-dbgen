@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -31,26 +30,6 @@ func usage() {
 	os.Exit(2)
 }
 
-func parseDebugFilters(s string, debugs *common.DebugFilter) {
-	debugs.Enabled = true
-	debugs.CVEs = utils.NewSet()
-
-	tokens := strings.Split(s, ",")
-	for _, token := range tokens {
-		kvs := strings.Split(token, "=")
-		if len(kvs) >= 2 {
-			switch kvs[0] {
-			case "v":
-				vuls := strings.Split(kvs[1], ",")
-				for _, v := range vuls {
-					debugs.CVEs.Add(v)
-				}
-				log.WithFields(log.Fields{"vuls": debugs.CVEs}).Debug("vulnerability filter")
-			}
-		}
-	}
-}
-
 func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
@@ -69,7 +48,7 @@ func main() {
 	}
 
 	if *debug != "" {
-		parseDebugFilters(*debug, &common.Debugs)
+		common.ParseDebugFilters(*debug)
 	}
 
 	done := make(chan bool, 1)

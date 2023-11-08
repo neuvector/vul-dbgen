@@ -121,8 +121,8 @@ func buildResponse(jsonReader io.Reader) (resp updater.FetcherResponse, err erro
 	return resp, nil
 }
 
-func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, unknownReleases map[string]struct{}) {
-	mvulnerabilities := make(map[string]*updater.Vulnerability)
+func parseDebianJSON(data *jsonData) (vulnerabilities []common.Vulnerability, unknownReleases map[string]struct{}) {
+	mvulnerabilities := make(map[string]*common.Vulnerability)
 	unknownReleases = make(map[string]struct{})
 
 	for pkgName, pkgNode := range *data {
@@ -149,7 +149,7 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				// Get or create the vulnerability.
 				vulnerability, vulnerabilityAlreadyExists := mvulnerabilities[vulnName]
 				if !vulnerabilityAlreadyExists {
-					vulnerability = &updater.Vulnerability{
+					vulnerability = &common.Vulnerability{
 						Name:        vulnName,
 						Link:        strings.Join([]string{debianURLPrefix, "/", vulnName}, ""),
 						Severity:    common.Unknown,
@@ -187,8 +187,8 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				}
 
 				// Create and add the feature version.
-				pkg := updater.FeatureVersion{
-					Feature: updater.Feature{
+				pkg := common.FeatureVersion{
+					Feature: common.Feature{
 						Name:      pkgName,
 						Namespace: "debian:" + common.DebianReleasesMapping[releaseName],
 					},

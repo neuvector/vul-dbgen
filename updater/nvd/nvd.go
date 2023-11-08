@@ -129,13 +129,14 @@ type CvssData struct {
 var NVD NVDMetadataFetcher
 
 func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, error) {
-	var results, cur NvdData
+	var results NvdData
 
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {
 		return nil, err
 	}
 	for _, f := range files {
+		var cur NvdData
 		if strings.HasSuffix(f.Name(), ".json.gz") {
 			log.WithFields(log.Fields{"file": f.Name()}).Debug("Read NVD data")
 
@@ -149,7 +150,6 @@ func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, err
 				return nil, err
 			}
 
-			log.WithFields(log.Fields{"file": f.Name()}).Debug("Read NVD data")
 			data, _ := ioutil.ReadAll(gzr)
 			json.Unmarshal(data, &cur)
 			results.CVEItems = append(results.CVEItems, cur.CVEItems...)
@@ -255,12 +255,9 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
 				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
 			}
-			if len(cve.Cve.Metrics.BaseMetricV31) > 0 && cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV31[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore
-			} else if len(cve.Cve.Metrics.BaseMetricV3) > 0 && cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
+			if len(cve.Cve.Metrics.BaseMetricV2) > 0 && cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore != 0 {
+				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV2[0].CvssData.VectorString
+				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore
 			}
 			if cve.Cve.PublishedDate != "" {
 				// Use new format, try old format if parse fails.
