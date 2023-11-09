@@ -4,93 +4,92 @@ import (
 	"testing"
 
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 func TestRHSACulling(t *testing.T) {
-	fixedIn1 := updater.FeatureVersion{
+	fixedIn1 := common.FeatureVersion{
 		Name: "",
-		Feature: updater.Feature{
+		Feature: common.Feature{
 			Name:      "ldap",
 			Namespace: "centos7",
 		},
 		Version: common.Version{},
 		MinVer:  common.Version{},
 	}
-	fixedIn2 := updater.FeatureVersion{
+	fixedIn2 := common.FeatureVersion{
 		Name: "",
-		Feature: updater.Feature{
+		Feature: common.Feature{
 			Name:      "ldap",
 			Namespace: "centos8",
 		},
 		Version: common.Version{},
 		MinVer:  common.Version{},
 	}
-	fixedIn3 := updater.FeatureVersion{
+	fixedIn3 := common.FeatureVersion{
 		Name: "",
-		Feature: updater.Feature{
+		Feature: common.Feature{
 			Name:      "openldap",
 			Namespace: "centos7",
 		},
 		Version: common.Version{},
 		MinVer:  common.Version{},
 	}
-	cve1 := updater.CVE{
+	cve1 := common.CVE{
 		Name: "CVE-2021-2222",
 	}
-	cve2 := updater.CVE{
+	cve2 := common.CVE{
 		Name: "CVE-2021-2223",
 	}
-	cve3 := updater.CVE{
+	cve3 := common.CVE{
 		Name: "CVE-2021-2225",
 	}
 
-	full1 := updater.Vulnerability{
+	full1 := common.Vulnerability{
 		Name:      "CVE-2021-2222",
 		Namespace: "centos7",
-		FixedIn:   []updater.FeatureVersion{fixedIn1, fixedIn3},
+		FixedIn:   []common.FeatureVersion{fixedIn1, fixedIn3},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{},
+		CVEs:      []common.CVE{},
 	}
 
-	full2 := updater.Vulnerability{
+	full2 := common.Vulnerability{
 		Name:      "RHSA-33",
 		Namespace: "centos7",
-		FixedIn:   []updater.FeatureVersion{fixedIn1},
+		FixedIn:   []common.FeatureVersion{fixedIn1},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{cve1},
+		CVEs:      []common.CVE{cve1},
 	}
 
-	full3 := updater.Vulnerability{
+	full3 := common.Vulnerability{
 		Name:      "RHSA-34",
 		Namespace: "centos8",
-		FixedIn:   []updater.FeatureVersion{fixedIn2, fixedIn3},
+		FixedIn:   []common.FeatureVersion{fixedIn2, fixedIn3},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{cve2, cve3},
+		CVEs:      []common.CVE{cve2, cve3},
 	}
 
-	full4 := updater.Vulnerability{
+	full4 := common.Vulnerability{
 		Name:      "CVE-2021-2223",
 		Namespace: "centos8",
-		FixedIn:   []updater.FeatureVersion{fixedIn2},
+		FixedIn:   []common.FeatureVersion{fixedIn2},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{},
+		CVEs:      []common.CVE{},
 	}
-	full5 := updater.Vulnerability{
+	full5 := common.Vulnerability{
 		Name:      "CVE-2021-2224",
 		Namespace: "centos8",
-		FixedIn:   []updater.FeatureVersion{fixedIn1, fixedIn2, fixedIn3},
+		FixedIn:   []common.FeatureVersion{fixedIn1, fixedIn2, fixedIn3},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{},
+		CVEs:      []common.CVE{},
 	}
-	full6 := updater.Vulnerability{
+	full6 := common.Vulnerability{
 		Name:      "CVE-2021-2225",
 		Namespace: "centos8",
-		FixedIn:   []updater.FeatureVersion{fixedIn2, fixedIn3},
+		FixedIn:   []common.FeatureVersion{fixedIn2, fixedIn3},
 		CPEs:      []string{},
-		CVEs:      []updater.CVE{},
+		CVEs:      []common.CVE{},
 	}
-	fullVulns := []updater.Vulnerability{full1, full2, full3, full4, full5, full6}
+	fullVulns := []common.Vulnerability{full1, full2, full3, full4, full5, full6}
 
 	vulns := cullAllVulns(fullVulns)
 	if len(vulns) != 4 {
