@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 const (
@@ -33,7 +32,7 @@ type k8sData struct {
 func k8sUpdate() error {
 	log.Info("fetching kubernetes vulnerabilities")
 
-	dataFile := fmt.Sprintf("%s%s", updater.CVESourceRoot, k8sDataFile)
+	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, k8sDataFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
 		log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")

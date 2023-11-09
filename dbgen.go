@@ -10,6 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/vul-dbgen/common"
 	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 	_ "github.com/vul-dbgen/updater/fetchers/alpine"
@@ -21,7 +22,6 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/rhel2"
 	_ "github.com/vul-dbgen/updater/fetchers/suse"
 	_ "github.com/vul-dbgen/updater/fetchers/ubuntu"
-	_ "github.com/vul-dbgen/updater/metadata_fetchers/nvd"
 )
 
 func usage() {
@@ -37,6 +37,7 @@ func main() {
 
 	version := flag.String("v", "0.90", "cve database version")
 	dbPath := flag.String("d", "", "cve database path")
+	debug := flag.String("debug", "", "debug filters")
 	flag.Usage = usage
 	flag.Parse()
 
@@ -44,6 +45,10 @@ func main() {
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("Parse version fail")
 		os.Exit(2)
+	}
+
+	if *debug != "" {
+		common.ParseDebugFilters(*debug)
 	}
 
 	done := make(chan bool, 1)

@@ -89,7 +89,7 @@ func init() {
 func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 	log.Info("fetching Ubuntu vulnerabilities")
 
-	dbDir := fmt.Sprintf("%s%s", updater.CVESourceRoot, ubuntuFolder)
+	dbDir := fmt.Sprintf("%s%s", common.CVESourceRoot, ubuntuFolder)
 	if info, err := os.Stat(dbDir); err == nil && info.IsDir() {
 		log.Debug("Use local Ubuntu database")
 		fetcher.repositoryLocalPath = dbDir
@@ -137,13 +137,12 @@ func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 			return resp, err
 		}
 
-		if !updater.IgnoreSeverity(v.Severity) {
-			// Add the vulnerability to the response.
-			upstreamCalibration(&v)
-			if len(v.FixedIn) > 0 {
-				resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-			}
+		// Add the vulnerability to the response.
+		upstreamCalibration(&v)
+		if len(v.FixedIn) > 0 {
+			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 		}
+
 		// Store any unknown releases as notes.
 		for k := range unknownReleases {
 			note := fmt.Sprintf("Ubuntu %s is not mapped to any version number (eg. trusty->14.04). Please update me.", k)
@@ -276,7 +275,7 @@ func collectModifiedVulnerabilities(revision int, dbRevision, repositoryLocalPat
 	return modifiedCVE, nil
 }
 
-func parseUbuntuCVE(fileContent io.Reader) (vulnerability updater.Vulnerability, unknownReleases map[string]struct{}, err error) {
+func parseUbuntuCVE(fileContent io.Reader) (vulnerability common.Vulnerability, unknownReleases map[string]struct{}, err error) {
 	unknownReleases = make(map[string]struct{})
 	readingDescription := false
 	scanner := bufio.NewScanner(fileContent)
@@ -382,8 +381,8 @@ func parseUbuntuCVE(fileContent io.Reader) (vulnerability updater.Vulnerability,
 				}
 
 				// Create and add the new package.
-				featureVersion := updater.FeatureVersion{
-					Feature: updater.Feature{
+				featureVersion := common.FeatureVersion{
+					Feature: common.Feature{
 						Namespace: "ubuntu:" + common.UbuntuReleasesMapping[md["release"]],
 						Name:      md["package"],
 					},
@@ -443,9 +442,9 @@ var calibrateMap = map[string]feactureShort{
 	"CVE-2017-16995":   {Name: "", Version: "4.14.8"},
 }
 
-func upstreamCalibration(v *updater.Vulnerability) {
+func upstreamCalibration(v *common.Vulnerability) {
 	// skip openssl in upstream
-	var newFix []updater.FeatureVersion
+	var newFix []common.FeatureVersion
 	for _, fx := range v.FixedIn {
 		if !strings.Contains(fx.Feature.Namespace, "upstream") {
 			newFix = append(newFix, fx)

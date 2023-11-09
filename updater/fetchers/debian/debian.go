@@ -63,7 +63,7 @@ func (fetcher *DebianFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 	var reader io.Reader
 
-	jsonFile := fmt.Sprintf("%s%s", updater.CVESourceRoot, debianJsonFile)
+	jsonFile := fmt.Sprintf("%s%s", common.CVESourceRoot, debianJsonFile)
 	if f, err := os.Open(jsonFile); err == nil {
 		log.Debug("Use local Debian database")
 
@@ -121,8 +121,8 @@ func buildResponse(jsonReader io.Reader) (resp updater.FetcherResponse, err erro
 	return resp, nil
 }
 
-func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, unknownReleases map[string]struct{}) {
-	mvulnerabilities := make(map[string]*updater.Vulnerability)
+func parseDebianJSON(data *jsonData) (vulnerabilities []common.Vulnerability, unknownReleases map[string]struct{}) {
+	mvulnerabilities := make(map[string]*common.Vulnerability)
 	unknownReleases = make(map[string]struct{})
 
 	for pkgName, pkgNode := range *data {
@@ -149,7 +149,7 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				// Get or create the vulnerability.
 				vulnerability, vulnerabilityAlreadyExists := mvulnerabilities[vulnName]
 				if !vulnerabilityAlreadyExists {
-					vulnerability = &updater.Vulnerability{
+					vulnerability = &common.Vulnerability{
 						Name:        vulnName,
 						Link:        strings.Join([]string{debianURLPrefix, "/", vulnName}, ""),
 						Severity:    common.Unknown,
@@ -161,12 +161,7 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				// In the JSON, a vulnerability has one urgency per package it affects.
 				// The highest urgency should be the one set.
 				urgency := urgencyToSeverity(releaseNode.Urgency)
-				if updater.IgnoreSeverity(urgency) && urgency != common.Unknown {
-					continue
-				}
-				if urgency != common.Unknown {
-					vulnerability.FeedRating = releaseNode.Urgency
-				}
+				vulnerability.FeedRating = releaseNode.Urgency
 				if urgency.Compare(vulnerability.Severity) > 0 {
 					vulnerability.Severity = urgency
 				}
@@ -192,8 +187,8 @@ func parseDebianJSON(data *jsonData) (vulnerabilities []updater.Vulnerability, u
 				}
 
 				// Create and add the feature version.
-				pkg := updater.FeatureVersion{
-					Feature: updater.Feature{
+				pkg := common.FeatureVersion{
+					Feature: common.Feature{
 						Name:      pkgName,
 						Namespace: "debian:" + common.DebianReleasesMapping[releaseName],
 					},

@@ -20,7 +20,7 @@ import (
 
 // Datastore is the interface that describes a database backend implementation.
 type Datastore interface {
-	InsertVulnerabilities(vulnerabilities []Vulnerability, appVuls []common.AppModuleVul, rawFiles []RawFile) error
+	InsertVulnerabilities(vulnerabilities []*common.Vulnerability, appVuls []*common.AppModuleVul, rawFiles []*common.RawFile) error
 
 	Close()
 }

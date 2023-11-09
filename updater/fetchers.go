@@ -1,8 +1,6 @@
 package updater
 
 import (
-	"time"
-
 	"github.com/vul-dbgen/common"
 )
 
@@ -20,7 +18,7 @@ type Fetcher interface {
 }
 
 type AppFetcher interface {
-	FetchUpdate(metadataFetchers map[string]MetadataFetcher) (AppFetcherResponse, error)
+	FetchUpdate() (AppFetcherResponse, error)
 	Clean()
 }
 
@@ -29,55 +27,12 @@ type RawFetcher interface {
 	Clean()
 }
 
-type MetadataMap map[string]interface{}
-
-type Feature struct {
-	Name      string
-	Namespace string
-}
-
-type FeatureVersion struct {
-	Name    string
-	Feature Feature
-	Version common.Version
-	MinVer  common.Version
-}
-
-type CVSS struct {
-	Vectors string
-	Score   float64
-}
-
-type CVE struct {
-	Name   string
-	CVSSv2 CVSS
-	CVSSv3 CVSS
-}
-
-type Vulnerability struct {
-	Name      string
-	Namespace string
-
-	Description string
-	Link        string
-	Severity    common.Priority
-	CVEs        []CVE
-	IssuedDate  time.Time
-	LastModDate time.Time
-
-	Metadata MetadataMap
-
-	FixedIn    []FeatureVersion
-	CPEs       []string
-	FeedRating string
-}
-
 type FetcherResponse struct {
-	Vulnerabilities []Vulnerability
+	Vulnerabilities []common.Vulnerability
 }
 
 type AppFetcherResponse struct {
-	Vulnerabilities []common.AppModuleVul
+	Vulnerabilities []*common.AppModuleVul
 }
 
 type RawFetcherResponse struct {

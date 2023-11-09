@@ -16,12 +16,12 @@ package nvd
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -29,19 +29,18 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 const (
 	jsonUrl      = "https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%s.json.gz"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
-	nvdAPIkey             = "NVD_KEY"
-	metadataKey    string = "NVD"
-	retryTimes            = 5
-	timeFormat            = "2006-01-02T15:04Z"
-	timeFormatNew         = "2006-01-02T15:04:05"
-	resultsPerPage        = 2000
+	nvdAPIkey      = "NVD_KEY"
+	nvdSubfolder   = "nvd"
+	retryTimes     = 5
+	timeFormat     = "2006-01-02T15:04Z"
+	timeFormatNew  = "2006-01-02T15:04:05"
+	resultsPerPage = 2000
 )
 
 type NVDMetadataFetcher struct {
@@ -127,15 +126,44 @@ type CvssData struct {
 	BaseScore             float64 `json:"baseScore"`
 }
 
-func init() {
-	updater.RegisterMetadataFetcher("NVD", &NVDMetadataFetcher{})
+var NVD NVDMetadataFetcher
+
+func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, error) {
+	var results NvdData
+
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		var cur NvdData
+		if strings.HasSuffix(f.Name(), ".json.gz") {
+			log.WithFields(log.Fields{"file": f.Name()}).Debug("Read NVD data")
+
+			rfp, err := os.Open(fmt.Sprintf("%s/%s", folder, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+			gzr, err := gzip.NewReader(rfp)
+			if err != nil {
+				rfp.Close()
+				return nil, err
+			}
+
+			data, _ := ioutil.ReadAll(gzr)
+			json.Unmarshal(data, &cur)
+			results.CVEItems = append(results.CVEItems, cur.CVEItems...)
+
+			gzr.Close()
+			rfp.Close()
+		}
+	}
+
+	return &results, nil
 }
 
-func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
+func (fetcher *NVDMetadataFetcher) LoadRemote() (*NvdData, error) {
 	nvdKey := os.Getenv(nvdAPIkey)
-
 	results := NvdData{}
 	totalResults := 1
 	index := 0
@@ -155,7 +183,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 			// json
 			request, err := http.NewRequest("GET", newUrl, nil)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error retrieving from url")
+				log.WithFields(log.Fields{"error": err}).Error("Error in retrieving from url")
 			}
 			// use faster rate if apikey exists.
 			if nvdKey != "" {
@@ -163,34 +191,56 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 				nvdDelay = time.Second
 			}
 
-			result, err := client.Do(request)
+			resp, err := client.Do(request)
 			if err != nil {
+				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
 				if retry == retryTimes {
 					log.Errorf("Failed to get NVD json '%s': %s", newUrl, err)
-					return common.ErrCouldNotDownload
+					return nil, err
 				}
 				retry++
-				log.WithFields(log.Fields{"error": err, "retry": retry}).Error("Failed to get NVD data")
-				result.Body.Close()
-				continue
-			}
-			err = json.NewDecoder(result.Body).Decode(&currentBatch)
-			if err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("Error during unmarshal")
-			}
-			result.Body.Close()
-			if index == 0 {
-				results = currentBatch
-				totalResults = results.TotalResultsCount
 			} else {
-				results.CVEItems = append(results.CVEItems, currentBatch.CVEItems...)
+				err = json.NewDecoder(resp.Body).Decode(&currentBatch)
+				if err != nil {
+					log.WithFields(log.Fields{"error": err}).Error("Error in during unmarshal")
+				} else {
+					if index == 0 {
+						results = currentBatch
+						totalResults = results.TotalResultsCount
+					} else {
+						results.CVEItems = append(results.CVEItems, currentBatch.CVEItems...)
+					}
+					index += resultsPerPage
+				}
+				time.Sleep(nvdDelay)
+				resp.Body.Close()
+				break
 			}
-			index += resultsPerPage
-			time.Sleep(nvdDelay)
-			break
 		}
-
 	}
+
+	return &results, nil
+}
+
+func (fetcher *NVDMetadataFetcher) Load() error {
+	fetcher.lock.Lock()
+	defer fetcher.lock.Unlock()
+
+	var results *NvdData
+	var err error
+
+	nvdFolder := fmt.Sprintf("%s/%s", common.CVESourceRoot, nvdSubfolder)
+	if _, err = os.Stat(nvdFolder); os.IsNotExist(err) {
+		results, err = fetcher.LoadRemote()
+	} else {
+		results, err = fetcher.LoadPreDownload(nvdFolder)
+	}
+	if err != nil {
+		log.WithFields(log.Fields{"error": err}).Error()
+		return common.ErrCouldNotDownload
+	}
+
+	fetcher.metadata = make(map[string]common.NVDMetadata)
 	for _, cve := range results.CVEItems {
 		var meta common.NVDMetadata
 		if len(cve.Cve.Description) > 0 {
@@ -205,15 +255,12 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
 				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
 			}
-			if len(cve.Cve.Metrics.BaseMetricV31) > 0 && cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV31[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore
-			} else if len(cve.Cve.Metrics.BaseMetricV3) > 0 && cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore != 0 {
-				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
-				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
+			if len(cve.Cve.Metrics.BaseMetricV2) > 0 && cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore != 0 {
+				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV2[0].CvssData.VectorString
+				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore
 			}
 			if cve.Cve.PublishedDate != "" {
-				//Use new format, try old format if parse fails.
+				// Use new format, try old format if parse fails.
 				if t, err := time.Parse(timeFormatNew, cve.Cve.LastModifiedDate); err == nil {
 					meta.PublishedDate = t
 				} else if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
@@ -221,7 +268,7 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 				}
 			}
 			if cve.Cve.LastModifiedDate != "" {
-				//Use new format, try old format if parse fails.
+				// Use new format, try old format if parse fails.
 				if t, err := time.Parse(timeFormatNew, cve.Cve.LastModifiedDate); err == nil {
 					meta.LastModifiedDate = t
 				} else if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
@@ -253,115 +300,42 @@ func (fetcher *NVDMetadataFetcher) Load(datastore updater.Datastore) error {
 				}
 			}
 
+			if common.Debugs.Enabled {
+				if common.Debugs.CVEs.Contains(cve.Cve.ID) {
+					log.WithFields(log.Fields{
+						"name": cve.Cve.ID, "v2": meta.CVSSv2.Score, "v3": meta.CVSSv3.Score,
+					}).Debug("DEBUG")
+				}
+			}
+
 			fetcher.metadata[cve.Cve.ID] = meta
 		}
 	}
 	return nil
 }
 
-var redhatCveRegexp = regexp.MustCompile(`\(CVE-([0-9]+)-([0-9]+)`)
-
-func (fetcher *NVDMetadataFetcher) AddMetadata(v *updater.VulnerabilityWithLock) error {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-
-	cves := []updater.CVE{updater.CVE{Name: v.Name}}
-	if len(v.CVEs) > 0 {
-		cves = v.CVEs
-	}
-
-	var maxV2, maxV3 float64
-	var found bool
-
-	v.Lock.Lock()
-	defer v.Lock.Unlock()
-	for _, cve := range cves {
-		nvd, ok := fetcher.metadata[cve.Name]
-		if !ok {
-			nvd = common.NVDMetadata{
-				CVSSv2:           common.CVSS{Vectors: cve.CVSSv2.Vectors, Score: cve.CVSSv2.Score},
-				CVSSv3:           common.CVSS{Vectors: cve.CVSSv3.Vectors, Score: cve.CVSSv3.Score},
-				PublishedDate:    v.Vulnerability.IssuedDate,
-				LastModifiedDate: v.Vulnerability.LastModDate,
-			}
+func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata, bool) {
+	if nvd, ok := fetcher.metadata[cve]; ok {
+		var description string
+		if nvd.Description == "" {
+			description = getCveDescription(cve)
 		} else {
-			found = true
+			description = nvd.Description
 		}
-
-		// Create Metadata map if necessary.
-		if v.Metadata == nil {
-			v.Metadata = make(map[string]interface{})
-		}
-
-		if v.Vulnerability.Description == "" {
-			if nvd.Description == "" {
-				v.Vulnerability.Description = getCveDescription(v.Vulnerability.Name)
-			} else {
-				v.Vulnerability.Description = nvd.Description
-			}
-		}
-
-		// Redhat and Amazon fetcher retrieves issued date
-		if v.Vulnerability.IssuedDate.IsZero() {
-			v.Vulnerability.IssuedDate = nvd.PublishedDate
-		}
-		if v.Vulnerability.LastModDate.IsZero() {
-			v.Vulnerability.LastModDate = nvd.LastModifiedDate
-		}
-
-		if nvd.CVSSv3.Score > maxV3 {
-			maxV3 = nvd.CVSSv3.Score
-			maxV2 = nvd.CVSSv2.Score
-			v.Metadata[metadataKey] = nvd
-			continue
-		} else if nvd.CVSSv3.Score < maxV3 {
-			continue
-		}
-		if nvd.CVSSv2.Score > maxV2 {
-			maxV3 = nvd.CVSSv3.Score
-			maxV2 = nvd.CVSSv2.Score
-			v.Metadata[metadataKey] = nvd
-		}
-	}
-
-	// if v.Vulnerability.Name == "CVE-2021-3426" {
-	// 	log.WithFields(log.Fields{"v": v.Vulnerability}).Error("================")
-	// }
-
-	if found && (maxV3 > 0 || maxV2 > 0) {
-		// log.WithFields(log.Fields{"cve": v.Name, "maxV2": maxV2, "maxV3": maxV3}).Info()
-
-		// For NVSHAS-4709, always set the severity by CVSS scores
-		// if v.Vulnerability.Severity == common.Unknown || v.Vulnerability.Severity == "" {
-		// similar logic in app fetchers
-		if maxV3 >= 7 || maxV2 >= 7 {
-			v.Vulnerability.Severity = common.High
-		} else if maxV3 >= 4 || maxV2 >= 4 {
-			v.Vulnerability.Severity = common.Medium
-		} else {
-			v.Vulnerability.Severity = common.Low
-		}
+		return &common.NVDMetadata{
+			Description:      description,
+			CVSSv3:           nvd.CVSSv3,
+			CVSSv2:           nvd.CVSSv2,
+			PublishedDate:    nvd.PublishedDate,
+			LastModifiedDate: nvd.LastModifiedDate,
+		}, true
 	} else {
-		if v.Vulnerability.Description == "" {
-			v.Vulnerability.Description = getCveDescription(v.Vulnerability.Name)
-		}
+		return nil, false
 	}
-	return nil
-}
-
-func (fetcher *NVDMetadataFetcher) AddCveDate(name string) (time.Time, time.Time, bool) {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-
-	if nvd, ok := fetcher.metadata[name]; ok {
-		return nvd.PublishedDate, nvd.LastModifiedDate, true
-	}
-
-	return time.Time{}, time.Time{}, false
 }
 
 // Return affected version and fixed version
-func (fetcher *NVDMetadataFetcher) AddAffectedVersion(name string) ([]string, []string, bool) {
+func (fetcher *NVDMetadataFetcher) GetAffectedVersion(name string) ([]string, []string, bool) {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
 
@@ -394,17 +368,6 @@ func (fetcher *NVDMetadataFetcher) AddAffectedVersion(name string) ([]string, []
 	return nil, nil, false
 }
 
-func (fetcher *NVDMetadataFetcher) LookupMetadata(name string) (string, float64, string, float64, bool) {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-
-	if nvd, ok := fetcher.metadata[name]; ok {
-		return nvd.CVSSv2.Vectors, nvd.CVSSv2.Score, nvd.CVSSv3.Vectors, nvd.CVSSv3.Score, true
-	}
-
-	return "", 0, "", 0, false
-}
-
 func (fetcher *NVDMetadataFetcher) Unload() {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
@@ -415,27 +378,6 @@ func (fetcher *NVDMetadataFetcher) Unload() {
 func (fetcher *NVDMetadataFetcher) Clean() {
 	fetcher.lock.Lock()
 	defer fetcher.lock.Unlock()
-}
-
-func getHashFromMetaURL(metaURL string) (string, error) {
-	r, err := http.Get(metaURL)
-	if err != nil {
-		return "", err
-	}
-	defer r.Body.Close()
-
-	scanner := bufio.NewScanner(r.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "sha256:") {
-			return strings.TrimPrefix(line, "sha256:"), nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return "", errors.New("invalid .meta file format")
 }
 
 func getCveDescription(cve string) string {

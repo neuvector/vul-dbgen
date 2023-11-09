@@ -8,6 +8,7 @@ import (
 
 const CompactCVEDBName = "cvedb.compact"
 const RegularCVEDBName = "cvedb.regular"
+const CVESourceRoot = "vul-source/"
 
 const RHELCpeMapFile = "rhel-cpe.map"
 
@@ -100,13 +101,56 @@ type AppModuleVul struct {
 	Vectors       string             `json:"VV2"`
 	ScoreV3       float64            `json:"SC3"`
 	VectorsV3     string             `json:"VV3"`
-	Severity      string             `json:"SE"`
+	Severity      Priority           `json:"SE"`
 	AffectedVer   []AppModuleVersion `json:"AV"`
 	FixedVer      []AppModuleVersion `json:"FV"`
 	UnaffectedVer []AppModuleVersion `json:"UV",omitempty`
 	IssuedDate    time.Time          `json:"Issue"`
 	LastModDate   time.Time          `json:"LastMod"`
 	CVEs          []string           `json:"-"`
+}
+
+// ---
+
+type Feature struct {
+	Name      string
+	Namespace string
+}
+
+type FeatureVersion struct {
+	Name    string
+	Feature Feature
+	Version Version
+	MinVer  Version
+}
+
+type CVE struct {
+	Name   string
+	CVSSv2 CVSS
+	CVSSv3 CVSS
+}
+
+type Vulnerability struct {
+	Name      string
+	Namespace string
+
+	Description string
+	Link        string
+	Severity    Priority
+	CVSSv2      CVSS
+	CVSSv3      CVSS
+	IssuedDate  time.Time
+	LastModDate time.Time
+	CVEs        []CVE
+
+	FixedIn    []FeatureVersion
+	CPEs       []string
+	FeedRating string
+}
+
+type RawFile struct {
+	Name string
+	Raw  []byte
 }
 
 // ---

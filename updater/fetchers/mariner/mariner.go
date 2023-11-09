@@ -108,7 +108,7 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 	var reader io.Reader
 
 	//Load file
-	file, err := os.Open(fmt.Sprintf("%s/%s/%s", updater.CVESourceRoot, marinerFolder, marinerFile))
+	file, err := os.Open(fmt.Sprintf("%s/%s/%s", common.CVESourceRoot, marinerFolder, marinerFile))
 	if err != nil {
 		return resp, err
 	}
@@ -121,15 +121,13 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 
 	// Collect vulnerabilities.
 	for _, v := range vulns {
-		if !updater.IgnoreSeverity(v.Severity) {
-			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
-		}
+		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 	}
 	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching mariner done")
 	return resp, nil
 }
 
-func parseMarinerOval(ovalReader io.Reader) (vulnerabilities []updater.Vulnerability, err error) {
+func parseMarinerOval(ovalReader io.Reader) (vulnerabilities []common.Vulnerability, err error) {
 	// Decode the XML.
 	var ov oval
 	err = xml.NewDecoder(ovalReader).Decode(&ov)
@@ -164,7 +162,7 @@ func parseMarinerOval(ovalReader io.Reader) (vulnerabilities []updater.Vulnerabi
 			continue
 		}
 
-		vulnerability := updater.Vulnerability{
+		vulnerability := common.Vulnerability{
 			Name:        cveName,
 			Link:        cveLink(definition),
 			Severity:    severity(definition),
@@ -268,13 +266,13 @@ func getPossibilities(cvename string, node criteria) [][]criterion {
 	return possibilities
 }
 
-func toFeatureVersions(cvename string, criteria criteria, stateMap map[string]state, objMap map[string]object, tstMap map[string]test) []updater.FeatureVersion {
-	featureVersionParameters := make(map[string]updater.FeatureVersion)
+func toFeatureVersions(cvename string, criteria criteria, stateMap map[string]state, objMap map[string]object, tstMap map[string]test) []common.FeatureVersion {
+	featureVersionParameters := make(map[string]common.FeatureVersion)
 
 	possibilities := getPossibilities(cvename, criteria)
 	for _, criterions := range possibilities {
 		var (
-			featureVersion updater.FeatureVersion
+			featureVersion common.FeatureVersion
 		)
 
 		// Attempt to parse package data from trees of criterions.
@@ -308,7 +306,7 @@ func toFeatureVersions(cvename string, criteria criteria, stateMap map[string]st
 	}
 
 	// Convert the map to slice.
-	var featureVersionParametersArray []updater.FeatureVersion
+	var featureVersionParametersArray []common.FeatureVersion
 	for _, fv := range featureVersionParameters {
 		featureVersionParametersArray = append(featureVersionParametersArray, fv)
 	}

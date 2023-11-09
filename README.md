@@ -6,7 +6,7 @@ Generate NeuVector vulnerability database
 
 | Source | URL |
 |--------|-----|
-| NVD and Mitre | https://nvd.nist.gov/feeds/json/cve/1.1 |
+| NVD 2.0 and Mitre | https://nvd.nist.gov/developers/vulnerabilities |
 | **OS based** |
 | Alpine | https://secdb.alpinelinux.org/ |
 | Amazon | https://alas.aws.amazon.com/ |

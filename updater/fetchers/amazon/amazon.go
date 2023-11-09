@@ -101,12 +101,12 @@ func (u *AmazonFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	return resp, nil
 }
 
-func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]updater.Vulnerability, error) {
+func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]common.Vulnerability, error) {
 	log.WithFields(log.Fields{"file": o.filename}).Info("fetching Amazon oval feed")
 
-	vulns := make([]updater.Vulnerability, 0)
+	vulns := make([]common.Vulnerability, 0)
 
-	fullname := fmt.Sprintf("%s%s", updater.CVESourceRoot, o.filename)
+	fullname := fmt.Sprintf("%s%s", common.CVESourceRoot, o.filename)
 	file, err := os.Open(fullname)
 	if err != nil {
 		log.WithFields(log.Fields{"file": o.filename}).Error("Failed to open the feed file")
@@ -136,7 +136,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 			continue
 		}
 
-		vuln := updater.Vulnerability{
+		vuln := common.Vulnerability{
 			Name: tokens[0],
 			Link: item.Link,
 		}
@@ -156,7 +156,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 		}
 
 		cves := strings.Split(item.CVEs, " ")
-		vuln.CVEs = make([]updater.CVE, len(cves))
+		vuln.CVEs = make([]common.CVE, len(cves))
 		for i, cve := range cves {
 			vuln.CVEs[i].Name = strings.TrimRight(cve, ",")
 		}
@@ -188,17 +188,18 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 					log.WithFields(log.Fields{"err": err, "version": pkgVer, "name": vuln.Name}).Error("invalid version")
 					continue
 				}
-				featureVersion := updater.FeatureVersion{
-					Feature: updater.Feature{
+				featureVersion := common.FeatureVersion{
+					Feature: common.Feature{
 						Namespace: fmt.Sprintf("amzn:%d", o.version),
 						Name:      pkg,
 					},
 					Version: ver,
 				}
-				// log.WithFields(log.Fields{"feature": featureVersion, "vuln": v.name, "link": vuln.Link}).Error("====================")
 
 				vuln.FixedIn = append(vuln.FixedIn, featureVersion)
 			}
+
+			common.DEBUG_SEVERITY(&vuln, "amazon")
 
 			vulns = append(vulns, vuln)
 		}

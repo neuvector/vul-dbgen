@@ -75,9 +75,10 @@ func nginxUpdate() error {
 		match = severityRegexp.FindAllStringSubmatch(cve, -1)
 		if len(match) > 0 {
 			s := match[0]
-			modVul.Severity = strings.Replace(s[1], "major", "High", -1)
-			modVul.Severity = strings.Replace(modVul.Severity, "medium", "Medium", -1)
-			modVul.Severity = strings.Replace(modVul.Severity, "low", "Low", -1)
+			severity := strings.Replace(s[1], "major", string(common.High), -1)
+			severity = strings.Replace(severity, "medium", string(common.Medium), -1)
+			severity = strings.Replace(severity, "low", string(common.Low), -1)
+			modVul.Severity = common.Priority(severity)
 		} else {
 			continue
 		}

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/vul-dbgen/common"
-	"github.com/vul-dbgen/updater"
 )
 
 const testOval = `<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:linux-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-common-5 https://oval.mitre.org/language/version5.11/ovaldefinition/complete/oval-common-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 https://oval.mitre.org/language/version5.11/ovaldefinition/complete/oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5#linux https://oval.mitre.org/language/version5.11/ovaldefinition/complete/linux-definitions-schema.xsd ">
@@ -83,14 +82,14 @@ const testOval = `<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-
 
 func TestParseOval(t *testing.T) {
 	reader := strings.NewReader(testOval)
-	expectedResult := updater.Vulnerability{
+	expectedResult := common.Vulnerability{
 		Name:        "CVE-2015-0803",
 		Description: "CVE-2015-0803 affecting package groff 1.22.3. A patched version of the package is available.",
 		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2015-0803",
 		IssuedDate:  time.Time{},
 		Severity:    "Critical",
 	}
-	expectedResult2 := updater.Vulnerability{
+	expectedResult2 := common.Vulnerability{
 		Name:        "CVE-2018-3914",
 		Description: "CVE-2018-3914 affecting package clamav 0.101.2. An upgraded version of the package is available that resolves this issue.",
 		Link:        "https://nvd.nist.gov/vuln/detail/CVE-2018-3914",
@@ -118,23 +117,23 @@ func TestParseOval(t *testing.T) {
 		t.Errorf("Error parsing version: %s", err)
 	}
 
-	featureVersion := updater.FeatureVersion{
-		Feature: updater.Feature{
+	featureVersion := common.FeatureVersion{
+		Feature: common.Feature{
 			Name:      "groff",
 			Namespace: "mariner:1.0",
 		},
 		Version: version,
 	}
-	featureVersion2 := updater.FeatureVersion{
-		Feature: updater.Feature{
+	featureVersion2 := common.FeatureVersion{
+		Feature: common.Feature{
 			Name:      "clamav",
 			Namespace: "mariner:1.0",
 		},
 		Version: version2,
 	}
 
-	expectedResult.FixedIn = []updater.FeatureVersion{featureVersion}
-	expectedResult2.FixedIn = []updater.FeatureVersion{featureVersion2}
+	expectedResult.FixedIn = []common.FeatureVersion{featureVersion}
+	expectedResult2.FixedIn = []common.FeatureVersion{featureVersion2}
 	vulns, err := parseMarinerOval(reader)
 	if err != nil {
 		t.Errorf("TestParseOval Error with parseMarinerOval: %s", err)
