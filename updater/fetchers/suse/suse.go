@@ -145,7 +145,7 @@ func (f *SuseFetcher) fetchOvalData(o *ovalInfo) (updater.FetcherResponse, error
 
 	// Collect vulnerabilities.
 	for _, v := range vs {
-		common.DEBUG_SEVERITY(&v, "suse")
+		common.DEBUG_VULN(&v, "suse")
 
 		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 	}

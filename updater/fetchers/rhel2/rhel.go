@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,12 +21,14 @@ import (
 )
 
 const (
-	minCount = 32000
+	minCount = 20000
 
 	retryTimes   = 5
 	ovalURI2     = "https://www.redhat.com/security/data/oval/v2/"
 	repoToCpeUrl = "https://www.redhat.com/security/data/metrics/repository-to-cpe.json"
 	pyxisUrl     = "https://catalog.redhat.com/api/containers/v1/images/nvr"
+
+	rhelSubfolder = "redhat"
 )
 
 var (
@@ -127,9 +130,39 @@ func (f *RHELCpeFetcher) FetchUpdate() (updater.RawFetcherResponse, error) {
 
 func (f *RHELCpeFetcher) Clean() {}
 
-// FetchUpdate gets vulnerability updates from the Red Hat OVAL definitions.
-func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
-	log.Info("fetching Red Hat vulnerabilities")
+func (f *RHELFetcher) fetchPreDownload(rhelFolder string) ([]common.Vulnerability, error) {
+	var results []common.Vulnerability
+
+	for _, ros := range rhsaOS {
+		folder := fmt.Sprintf("%s/%d", rhelFolder, ros)
+		files, err := ioutil.ReadDir(folder)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range files {
+			if strings.HasSuffix(f.Name(), ".xml.bz2") {
+				log.WithFields(log.Fields{"file": f.Name()}).Debug("Read redhat feed")
+
+				rfp, err := os.Open(fmt.Sprintf("%s/%s", folder, f.Name()))
+				cr := bzip2.NewReader(rfp)
+				vs, err := parseRHSA(ros, f.Name(), cr)
+				rfp.Close()
+
+				if err != nil {
+					return nil, err
+				}
+				for _, v := range vs {
+					results = append(results, v)
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func (f *RHELFetcher) fetchRemote() ([]common.Vulnerability, error) {
+	var results []common.Vulnerability
 
 	for _, ros := range rhsaOS {
 		rurl := fmt.Sprintf("%sRHEL%d/", ovalURI2, ros)
@@ -139,7 +172,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 		r, err := client.Do(req)
 		if err != nil {
 			log.Errorf("could not download RHEL's directory: %s", err)
-			return resp, common.ErrCouldNotDownload
+			return nil, common.ErrCouldNotDownload
 		}
 
 		// Get the list of RHSAs that we have to process.
@@ -173,7 +206,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 				if err != nil {
 					if retry == retryTimes {
 						log.Errorf("could not download RHEL's update file: %s", err)
-						return resp, common.ErrCouldNotDownload
+						return nil, common.ErrCouldNotDownload
 					}
 				} else {
 					// Parse the XML.
@@ -189,7 +222,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 					if err == nil {
 						// Collect vulnerabilities.
 						for _, v := range vs {
-							resp.Vulnerabilities = append(resp.Vulnerabilities, v)
+							results = append(results, v)
 						}
 						break
 					}
@@ -205,13 +238,32 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 		}
 	}
 
-	if len(resp.Vulnerabilities) < minCount {
-		log.WithFields(log.Fields{"count": len(resp.Vulnerabilities), "min": minCount}).Error("Red Hat CVE count too small")
-		return resp, fmt.Errorf("Red Hat CVE count too small, %d < %d", len(resp.Vulnerabilities), minCount)
+	return results, nil
+}
+
+func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
+	log.Info("fetching Red Hat vulnerabilities")
+
+	var results []common.Vulnerability
+
+	rhelFolder := fmt.Sprintf("%s/%s", common.CVESourceRoot, rhelSubfolder)
+	if _, err = os.Stat(rhelFolder); os.IsNotExist(err) {
+		results, err = f.fetchRemote()
+	} else {
+		results, err = f.fetchPreDownload(rhelFolder)
+	}
+	if err != nil {
+		log.WithFields(log.Fields{"error": err}).Error()
+		return resp, common.ErrCouldNotDownload
 	}
 
-	resp.Vulnerabilities = cullAllVulns(resp.Vulnerabilities)
-	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching Red Hat done")
+	if len(results) < minCount {
+		log.WithFields(log.Fields{"count": len(results), "min": minCount}).Error("Red Hat CVE count too small")
+		return resp, fmt.Errorf("Red Hat CVE count too small, %d < %d", len(results), minCount)
+	}
+
+	resp.Vulnerabilities = cullAllVulns(results)
+	log.WithFields(log.Fields{"Vulnerabilities": len(results)}).Info("fetching Red Hat done")
 
 	return resp, nil
 }

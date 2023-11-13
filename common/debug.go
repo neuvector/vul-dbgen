@@ -1,11 +1,20 @@
 package common
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	utils "github.com/vul-dbgen/share"
 )
+
+func firstN(s string, n int) string {
+	if len(s) > n {
+		return fmt.Sprintf("%s...", s[:n])
+	}
+	return s
+}
 
 type DebugFilter struct {
 	Enabled bool
@@ -34,12 +43,14 @@ func ParseDebugFilters(s string) {
 	}
 }
 
-func DEBUG_SEVERITY(x interface{}, msg string) {
+func DEBUG_VULN(x interface{}, msg string) {
 	if v, ok := x.(*Vulnerability); ok {
 		if Debugs.Enabled {
 			if Debugs.CVEs.Contains(v.Name) {
 				log.WithFields(log.Fields{
 					"name": v.Name, "distro": v.Namespace, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3, "rate": v.FeedRating,
+					"pub": v.IssuedDate.Format(time.RFC3339), "lastMod": v.LastModDate.Format(time.RFC3339),
+					"description": firstN(v.Description, 64),
 				}).Debug(msg)
 			}
 		}
@@ -48,6 +59,8 @@ func DEBUG_SEVERITY(x interface{}, msg string) {
 			if Debugs.CVEs.Contains(app.VulName) {
 				log.WithFields(log.Fields{
 					"name": app.VulName, "module": app.ModuleName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
+					"pub": app.IssuedDate.Format(time.RFC3339), "lastMod": app.LastModDate.Format(time.RFC3339),
+					"description": firstN(app.Description, 64),
 				}).Debug(msg)
 			}
 		}

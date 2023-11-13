@@ -216,6 +216,9 @@ func enrichAppMeta(meta *common.NVDMetadata, v *common.AppModuleVul) {
 	if meta.LastModifiedDate.IsZero() {
 		meta.LastModifiedDate = v.LastModDate
 	}
+	if len(meta.Description) == 0 {
+		meta.Description = v.Description
+	}
 }
 
 func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *common.CVE) {
@@ -230,6 +233,9 @@ func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *co
 	}
 	if meta.LastModifiedDate.IsZero() {
 		meta.LastModifiedDate = v.LastModDate
+	}
+	if len(meta.Description) == 0 {
+		meta.Description = v.Description
 	}
 }
 
@@ -282,7 +288,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		}
 
 		for _, cve := range cves {
-			common.DEBUG_SEVERITY(v, "pre distro")
+			common.DEBUG_VULN(v, "pre distro")
 
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve.Name]; ok {
@@ -313,7 +319,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		}
 
 		for _, cve := range cves {
-			common.DEBUG_SEVERITY(app, "pre app")
+			common.DEBUG_VULN(app, "pre app")
 
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve]; ok {
@@ -357,6 +363,9 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				if v.LastModDate.IsZero() {
 					v.LastModDate = meta.LastModifiedDate
 				}
+				if len(v.Description) == 0 {
+					v.Description = meta.Description
+				}
 				if cvss3.Score == 0 {
 					cvss3 = meta.CVSSv3
 				}
@@ -367,7 +376,6 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		}
 
 		severity := fixSeverityScore(v.Severity, &cvss2, &cvss3)
-
 		v.Severity = severity
 		v.CVSSv3 = cvss3
 		v.CVSSv2 = cvss2
@@ -375,7 +383,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		if !IgnoreSeverity(v.Severity) {
 			outVuls = append(outVuls, v)
 
-			common.DEBUG_SEVERITY(v, "post distro")
+			common.DEBUG_VULN(v, "post distro")
 		}
 	}
 
@@ -395,6 +403,9 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				}
 				if app.LastModDate.IsZero() {
 					app.LastModDate = meta.LastModifiedDate
+				}
+				if len(app.Description) == 0 {
+					app.Description = meta.Description
 				}
 				if cvss3.Score == 0 {
 					cvss3 = meta.CVSSv3
@@ -416,7 +427,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		if !IgnoreSeverity(app.Severity) {
 			outApps = append(outApps, app)
 
-			common.DEBUG_SEVERITY(app, "post app")
+			common.DEBUG_VULN(app, "post app")
 		}
 	}
 
