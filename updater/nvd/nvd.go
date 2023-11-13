@@ -128,7 +128,7 @@ type CvssData struct {
 
 var NVD NVDMetadataFetcher
 
-func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, error) {
+func (fetcher *NVDMetadataFetcher) loadPreDownload(folder string) (*NvdData, error) {
 	var results NvdData
 
 	files, err := ioutil.ReadDir(folder)
@@ -162,7 +162,7 @@ func (fetcher *NVDMetadataFetcher) LoadPreDownload(folder string) (*NvdData, err
 	return &results, nil
 }
 
-func (fetcher *NVDMetadataFetcher) LoadRemote() (*NvdData, error) {
+func (fetcher *NVDMetadataFetcher) loadRemote() (*NvdData, error) {
 	nvdKey := os.Getenv(nvdAPIkey)
 	results := NvdData{}
 	totalResults := 1
@@ -231,9 +231,9 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 
 	nvdFolder := fmt.Sprintf("%s/%s", common.CVESourceRoot, nvdSubfolder)
 	if _, err = os.Stat(nvdFolder); os.IsNotExist(err) {
-		results, err = fetcher.LoadRemote()
+		results, err = fetcher.loadRemote()
 	} else {
-		results, err = fetcher.LoadPreDownload(nvdFolder)
+		results, err = fetcher.loadPreDownload(nvdFolder)
 	}
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error()

@@ -119,6 +119,8 @@ func parseSecDB(body []byte, url string) ([]common.Vulnerability, error) {
 				vuln.FixedIn = append(vuln.FixedIn, featureVersion)
 
 				vulns = append(vulns, vuln)
+
+				common.DEBUG_VULN(&vuln, "alpine")
 			}
 		}
 	}

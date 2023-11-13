@@ -199,7 +199,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 				vuln.FixedIn = append(vuln.FixedIn, featureVersion)
 			}
 
-			common.DEBUG_SEVERITY(&vuln, "amazon")
+			common.DEBUG_VULN(&vuln, "amazon")
 
 			vulns = append(vulns, vuln)
 		}

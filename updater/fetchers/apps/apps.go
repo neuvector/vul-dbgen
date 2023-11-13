@@ -73,7 +73,7 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 			}
 		}
 
-		common.DEBUG_SEVERITY(mv, "app")
+		common.DEBUG_VULN(mv, "app")
 
 		resp.Vulnerabilities = append(resp.Vulnerabilities, mv)
 	}
