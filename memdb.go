@@ -143,6 +143,7 @@ const (
 	dbOracle
 	dbMariner
 	dbSuse
+	dbPhoton
 	dbMax
 )
 
@@ -178,6 +179,7 @@ func (db *memDB) UpdateDb(version string) bool {
 	dbs.buffers[dbOracle] = dbBuffer{namespace: "oracle", indexFile: "oracle_index.tb", fullFile: "oracle_full.tb"}
 	dbs.buffers[dbMariner] = dbBuffer{namespace: "mariner", indexFile: "mariner_index.tb", fullFile: "mariner_full.tb"}
 	dbs.buffers[dbSuse] = dbBuffer{namespace: "sles", indexFile: "suse_index.tb", fullFile: "suse_full.tb"}
+	dbs.buffers[dbPhoton] = dbBuffer{namespace: "photon", indexFile: "photon_index.tb", fullFile: "photon_full.tb"}
 
 	dbs.rawSHA = make([][sha256.Size]byte, len(db.rawFiles))
 
