@@ -304,7 +304,7 @@ func parseUbuntuCVE(fileContent io.Reader) (vulnerability common.Vulnerability, 
 				priority = priority[:strings.Index(priority, " ")]
 			}
 
-			vulnerability.Severity = ubuntuPriorityToSeverity(priority)
+			vulnerability.Severity = toSeverity(priority)
 			vulnerability.FeedRating = priority
 			continue
 		}
@@ -409,7 +409,7 @@ func parseUbuntuCVE(fileContent io.Reader) (vulnerability common.Vulnerability, 
 	return
 }
 
-func ubuntuPriorityToSeverity(priority string) common.Priority {
+func toSeverity(priority string) common.Priority {
 	switch priority {
 	case "untriaged":
 		return common.Unknown

@@ -210,6 +210,9 @@ func enrichAppMeta(meta *common.NVDMetadata, v *common.AppModuleVul) {
 		meta.CVSSv2.Score = v.Score
 		meta.CVSSv2.Vectors = v.Vectors
 	}
+	if meta.Severity == "" || meta.Severity == common.Unknown {
+		meta.Severity = v.Severity
+	}
 	if meta.PublishedDate.IsZero() {
 		meta.PublishedDate = v.IssuedDate
 	}
@@ -227,6 +230,9 @@ func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *co
 	}
 	if meta.CVSSv2.Score == 0 {
 		meta.CVSSv2 = cve.CVSSv2
+	}
+	if meta.Severity == "" || meta.Severity == common.Unknown {
+		meta.Severity = v.Severity
 	}
 	if meta.PublishedDate.IsZero() {
 		meta.PublishedDate = v.IssuedDate
@@ -302,6 +308,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 					meta = &common.NVDMetadata{
 						CVSSv3:           cve.CVSSv3,
 						CVSSv2:           cve.CVSSv2,
+						Severity:         v.Severity,
 						PublishedDate:    v.IssuedDate,
 						LastModifiedDate: v.LastModDate,
 					}
@@ -333,6 +340,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 					meta = &common.NVDMetadata{
 						CVSSv3:           common.CVSS{Score: app.ScoreV3, Vectors: app.VectorsV3},
 						CVSSv2:           common.CVSS{Score: app.Score, Vectors: app.Vectors},
+						Severity:         app.Severity,
 						PublishedDate:    app.IssuedDate,
 						LastModifiedDate: app.LastModDate,
 					}
@@ -371,6 +379,9 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				}
 				if cvss2.Score == 0 {
 					cvss2 = meta.CVSSv2
+				}
+				if v.Severity == "" || v.Severity == common.Unknown {
+					v.Severity = meta.Severity
 				}
 			}
 		}

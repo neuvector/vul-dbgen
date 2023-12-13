@@ -14,6 +14,7 @@ const RHELCpeMapFile = "rhel-cpe.map"
 
 type NVDMetadata struct {
 	Description      string `json:"description,omitempty"`
+	Severity         Priority
 	CVSSv2           CVSS
 	CVSSv3           CVSS
 	VulnVersions     []NVDvulnerableVersion
@@ -74,7 +75,7 @@ type VulFull struct {
 	Namespace   string    `json:"NS"`
 	Description string    `json:"D"`
 	Link        string    `json:"L"`
-	Severity    string    `json:"S"`
+	Severity    Priority  `json:"S"`
 	CVSSv2      CVSS      `json:"C2"`
 	CVSSv3      CVSS      `json:"C3"`
 	FixedBy     string    `json:"FB"`
