@@ -75,7 +75,7 @@ type NvdCve struct {
 				Source                  string   `json:"source"`
 				Type                    string   `json:"type"`
 				CvssData                CvssData `json:"cvssData"`
-				Severity                string   `json:"severity"`
+				Severity                string   `json:"baseSeverity"`
 				ExploitabilityScore     float64  `json:"exploitabilityScore"`
 				ImpactScore             float64  `json:"impactScore"`
 				ObtainAllPrivilege      bool     `json:"obtainAllPrivilege"`
@@ -124,6 +124,7 @@ type CvssData struct {
 	IntegrityImpact       string  `json:"integrityImpact"`
 	AvailabilityImpact    string  `json:"availabilityImpact"`
 	BaseScore             float64 `json:"baseScore"`
+	BaseSeverity          string  `json:"baseSeverity"`
 }
 
 var NVD NVDMetadataFetcher
@@ -247,17 +248,22 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 			meta.Description = cve.Cve.Description[0].Value
 		}
 		if cve.Cve.ID != "" {
-			//Prefer CVSS31 over CVSS30 if it exists.
+			// Prefer CVSS31 over CVSS30 if it exists.
 			if len(cve.Cve.Metrics.BaseMetricV31) > 0 && cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore != 0 {
 				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV31[0].CvssData.VectorString
 				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseScore
+				meta.Severity = fetcher.toSeverity(cve.Cve.Metrics.BaseMetricV31[0].CvssData.BaseSeverity)
 			} else if len(cve.Cve.Metrics.BaseMetricV3) > 0 && cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore != 0 {
 				meta.CVSSv3.Vectors = cve.Cve.Metrics.BaseMetricV3[0].CvssData.VectorString
 				meta.CVSSv3.Score = cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseScore
+				meta.Severity = fetcher.toSeverity(cve.Cve.Metrics.BaseMetricV3[0].CvssData.BaseSeverity)
 			}
 			if len(cve.Cve.Metrics.BaseMetricV2) > 0 && cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore != 0 {
 				meta.CVSSv2.Vectors = cve.Cve.Metrics.BaseMetricV2[0].CvssData.VectorString
 				meta.CVSSv2.Score = cve.Cve.Metrics.BaseMetricV2[0].CvssData.BaseScore
+				if meta.Severity == "" {
+					meta.Severity = fetcher.toSeverity(cve.Cve.Metrics.BaseMetricV2[0].Severity)
+				}
 			}
 			if cve.Cve.PublishedDate != "" {
 				// Use new format, try old format if parse fails.
@@ -314,6 +320,22 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 	return nil
 }
 
+func (fetcher *NVDMetadataFetcher) toSeverity(s string) common.Priority {
+	switch s {
+	case "LOW":
+		return common.Low
+	case "MEDIUM":
+		return common.Medium
+	case "HIGH":
+		return common.High
+	case "CRITICAL":
+		return common.Critical
+	}
+
+	// return empty instead of Unknown
+	return ""
+}
+
 func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata, bool) {
 	if nvd, ok := fetcher.metadata[cve]; ok {
 		var description string
@@ -324,6 +346,7 @@ func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata,
 		}
 		return &common.NVDMetadata{
 			Description:      description,
+			Severity:         nvd.Severity,
 			CVSSv3:           nvd.CVSSv3,
 			CVSSv2:           nvd.CVSSv2,
 			PublishedDate:    nvd.PublishedDate,

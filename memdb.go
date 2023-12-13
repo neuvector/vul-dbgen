@@ -55,7 +55,7 @@ func modVulToVulFull(v *common.Vulnerability) *common.VulFull {
 	vv1.Namespace = v.Namespace
 	vv1.Description = v.Description
 	vv1.Link = v.Link
-	vv1.Severity = string(v.Severity)
+	vv1.Severity = v.Severity
 	vv1.FeedRating = v.FeedRating
 	vv1.CPEs = v.CPEs
 	vv1.CVEs = make([]string, len(v.CVEs))

@@ -14,6 +14,7 @@ import (
 	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 	_ "github.com/vul-dbgen/updater/fetchers/alpine"
+
 	_ "github.com/vul-dbgen/updater/fetchers/amazon"
 	_ "github.com/vul-dbgen/updater/fetchers/apps"
 	_ "github.com/vul-dbgen/updater/fetchers/debian"
@@ -37,7 +38,7 @@ func main() {
 
 	version := flag.String("v", "0.90", "cve database version")
 	dbPath := flag.String("d", "", "cve database path")
-	debug := flag.String("debug", "", "debug filters")
+	debug := flag.String("debug", "", "debug filters. -debug v=CVE-2023-1000")
 	flag.Usage = usage
 	flag.Parse()
 
