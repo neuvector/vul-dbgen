@@ -49,6 +49,7 @@ func DEBUG_VULN(x interface{}, msg string) {
 			if Debugs.CVEs.Contains(v.Name) {
 				log.WithFields(log.Fields{
 					"name": v.Name, "distro": v.Namespace, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3, "rate": v.FeedRating,
+					"fix": v.FixedIn, "cpes": v.CPEs,
 					"pub": v.IssuedDate.Format(time.RFC3339), "lastMod": v.LastModDate.Format(time.RFC3339),
 					"description": firstN(v.Description, 64),
 				}).Debug(msg)

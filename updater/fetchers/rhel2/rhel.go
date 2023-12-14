@@ -141,7 +141,7 @@ func (f *RHELFetcher) fetchPreDownload(rhelFolder string) ([]common.Vulnerabilit
 		}
 		for _, f := range files {
 			if strings.HasSuffix(f.Name(), ".xml.bz2") {
-				log.WithFields(log.Fields{"file": f.Name()}).Debug("Read redhat feed")
+				log.WithFields(log.Fields{"os": ros, "file": f.Name()}).Debug("Read redhat feed")
 
 				rfp, err := os.Open(fmt.Sprintf("%s/%s", folder, f.Name()))
 				cr := bzip2.NewReader(rfp)
@@ -450,7 +450,7 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []co
 
 		pkgs := toFeatureVersions(ros, rhsa, nameId, definition.Criteria)
 		if len(pkgs) > 0 {
-			vulnerability := common.Vulnerability{
+			v := common.Vulnerability{
 				Name:        nameId,
 				Namespace:   "centos" + ":" + strconv.Itoa(ros),
 				Link:        link(definition),
@@ -461,14 +461,12 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []co
 				CPEs:        definition.CpeList.CPEs,
 				FeedRating:  definition.Severity,
 			}
-			if vulnerability.Link == "" {
-				vulnerability.Link = cveLink(definition)
+			if v.Link == "" {
+				v.Link = cveLink(definition)
 			}
-			// if vulnerability.Severity == common.Unknown {
-			// 	log.WithFields(log.Fields{"nameId": nameId, "rhsa": rhsa}).Error("\"Unknown\" severity")
-			// }
+
 			for _, p := range pkgs {
-				vulnerability.FixedIn = append(vulnerability.FixedIn, p)
+				v.FixedIn = append(v.FixedIn, p)
 			}
 			for _, r := range definition.Cves {
 				var v2, v3 string
@@ -485,19 +483,29 @@ func parseRHSA(ros int, rhsa string, ovalReader io.Reader) (vulnerabilities []co
 						v3 = r.Cvss3[s+1:]
 					}
 				}
-				vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
+				cve := common.CVE{
 					Name:   r.ID,
 					CVSSv2: common.CVSS{Vectors: v2, Score: s2},
 					CVSSv3: common.CVSS{Vectors: v3, Score: s3},
-				})
+				}
+				if s2 > v.CVSSv2.Score {
+					v.CVSSv2 = cve.CVSSv2
+				}
+				if s3 > v.CVSSv3.Score {
+					v.CVSSv3 = cve.CVSSv3
+				}
+				v.CVEs = append(v.CVEs, cve)
 			}
-			if vulnerability.IssuedDate.IsZero() {
-				vulnerability.IssuedDate = vulnerability.LastModDate
+			if v.IssuedDate.IsZero() {
+				v.IssuedDate = v.LastModDate
 			}
-			if vulnerability.LastModDate.IsZero() {
-				vulnerability.LastModDate = vulnerability.IssuedDate
+			if v.LastModDate.IsZero() {
+				v.LastModDate = v.IssuedDate
 			}
-			vulnerabilities = append(vulnerabilities, vulnerability)
+
+			common.DEBUG_VULN(&v, "redhat")
+
+			vulnerabilities = append(vulnerabilities, v)
 		}
 	}
 
