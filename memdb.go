@@ -72,10 +72,9 @@ func modVulToVulFull(v *common.Vulnerability) *common.VulFull {
 
 func modFeaToFeaFull(fx common.FeatureVersion) common.FeaFull {
 	var v1fx = common.FeaFull{
-		Name:      fx.Feature.Name,
-		Namespace: fx.Feature.Namespace,
-		Version:   fx.Version.String(),
-		MinVer:    fx.MinVer.String(),
+		Name:    fx.Feature.Name,
+		Version: fx.Version.String(),
+		MinVer:  fx.MinVer.String(),
 	}
 	return v1fx
 }
@@ -288,7 +287,22 @@ func (db *memDB) InsertVulnerabilities(osVuls []*common.Vulnerability, appVuls [
 			vv1.FixedIn = append(vv1.FixedIn, v1fx)
 		}
 		cveName := fmt.Sprintf("%s:%s", vv1.Namespace, vv1.Name)
-		db.osVuls[cveName] = vv1
+		if vf, ok := db.osVuls[cveName]; ok {
+			fixes := utils.NewSetFromSliceKind(vf.FixedIn)
+			cpes := utils.NewSetFromSliceKind(vf.CPEs)
+			for _, f := range vv1.FixedIn {
+				if !fixes.Contains(f) {
+					vf.FixedIn = append(vf.FixedIn, f)
+				}
+			}
+			for _, c := range vv1.CPEs {
+				if !cpes.Contains(c) {
+					vf.CPEs = append(vf.CPEs, c)
+				}
+			}
+		} else {
+			db.osVuls[cveName] = vv1
+		}
 	}
 	db.appVuls = appVuls
 

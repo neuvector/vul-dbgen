@@ -13,8 +13,8 @@ import (
 	"github.com/vul-dbgen/common"
 	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
-	_ "github.com/vul-dbgen/updater/fetchers/alpine"
 
+	_ "github.com/vul-dbgen/updater/fetchers/alpine"
 	_ "github.com/vul-dbgen/updater/fetchers/amazon"
 	_ "github.com/vul-dbgen/updater/fetchers/apps"
 	_ "github.com/vul-dbgen/updater/fetchers/debian"
