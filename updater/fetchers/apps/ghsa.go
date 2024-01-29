@@ -21,6 +21,7 @@ const (
 	pipDataFile    = "github/pip.data.gz"
 	nugetDataFile  = "github/nuget.data.gz"
 	golangDataFile = "github/go.data.gz"
+	phpDataFile    = "github/php.data.gz"
 )
 
 type ghsaData struct {
@@ -67,6 +68,7 @@ func ghsaUpdate() error {
 	loadGHSAData(pipDataFile, "pip", "python:")
 	loadGHSAData(nugetDataFile, ".NET", ".NET:")
 	loadGHSAData(golangDataFile, "golang", "go:")
+	loadGHSAData(phpDataFile, "php", "php:")
 	return nil
 }
 
