@@ -287,22 +287,7 @@ func (db *memDB) InsertVulnerabilities(osVuls []*common.Vulnerability, appVuls [
 			vv1.FixedIn = append(vv1.FixedIn, v1fx)
 		}
 		cveName := fmt.Sprintf("%s:%s", vv1.Namespace, vv1.Name)
-		if vf, ok := db.osVuls[cveName]; ok {
-			fixes := utils.NewSetFromSliceKind(vf.FixedIn)
-			cpes := utils.NewSetFromSliceKind(vf.CPEs)
-			for _, f := range vv1.FixedIn {
-				if !fixes.Contains(f) {
-					vf.FixedIn = append(vf.FixedIn, f)
-				}
-			}
-			for _, c := range vv1.CPEs {
-				if !cpes.Contains(c) {
-					vf.CPEs = append(vf.CPEs, c)
-				}
-			}
-		} else {
-			db.osVuls[cveName] = vv1
-		}
+		db.osVuls[cveName] = vv1
 	}
 	db.appVuls = appVuls
 
