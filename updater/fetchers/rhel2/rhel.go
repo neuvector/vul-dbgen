@@ -17,6 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 )
 
@@ -301,29 +302,24 @@ func makeCveMap(allVulns []common.Vulnerability) map[string]common.Vulnerability
 	for _, vuln := range allVulns {
 		key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
 
-		if _, ok := cveMap[key]; !ok {
-			//entry doesn't exist, create it.
+		if exist, ok := cveMap[key]; !ok {
+			// entry doesn't exist, create it.
 			cveMap[key] = vuln
 		} else {
-			//entry exists, check for duplicate feature versions and combine unique feature version lists.
-			for _, fv := range vuln.FixedIn {
-				duplicates := false
-				for _, fv2 := range cveMap[key].FixedIn {
-					if isDuplicateFeatureVersion(fv, fv2) {
-						//feature is already contained, skip and do not add.
-						duplicates = true
-						break
-					}
-				}
-				if !duplicates {
-					//Combine feature version lists.
-					newFixedIn := cveMap[key].FixedIn
-					newFixedIn = append(newFixedIn, fv)
-					newEntry := cveMap[key]
-					newEntry.FixedIn = newFixedIn
-					cveMap[key] = newEntry
+			// merge feature version and cpe
+			fixes := utils.NewSetFromSliceKind(exist.FixedIn)
+			cpes := utils.NewSetFromSliceKind(exist.CPEs)
+			for _, f := range vuln.FixedIn {
+				if !fixes.Contains(f) {
+					exist.FixedIn = append(exist.FixedIn, f)
 				}
 			}
+			for _, c := range vuln.CPEs {
+				if !cpes.Contains(c) {
+					exist.CPEs = append(exist.CPEs, c)
+				}
+			}
+			cveMap[key] = exist
 		}
 
 	}
