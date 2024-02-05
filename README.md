@@ -13,6 +13,7 @@ Generate NeuVector vulnerability database
 | Debian | https://security-tracker.debian.org/tracker/data/json |
 | Microsoft mariner | https://github.com/microsoft/CBL-MarinerVulnerabilityData |
 | Oracle OS | https://linux.oracle.com/oval/ |
+| Photon | https://packages.vmware.com/photon/photon_cve_metadata |
 | Rancher OS | https://rancher.com/docs/os/v1.x/en/about/security/ |
 | Red Hat/CentOS | https://www.redhat.com/security/data/oval/v2/ |
 | SUSE Linux | https://ftp.suse.com/pub/projects/security/oval/ |
