@@ -63,16 +63,16 @@ type ghsaData struct {
 
 func ghsaUpdate() error {
 	log.Info("fetching ghsa vulnerabilities")
-	loadGHSAData(npmDataFile, "npm", "")
-	loadGHSAData(mavenDataFile, "maven", "")
-	loadGHSAData(pipDataFile, "pip", "python:")
-	loadGHSAData(nugetDataFile, ".NET", ".NET:")
-	loadGHSAData(golangDataFile, "golang", "go:")
-	loadGHSAData(phpDataFile, "php", "php:")
+	loadGHSAData(npmDataFile, "npm", "", false)
+	loadGHSAData(mavenDataFile, "maven", "", false)
+	loadGHSAData(pipDataFile, "pip", "python:", false)
+	loadGHSAData(nugetDataFile, ".NET", ".NET:", false)
+	loadGHSAData(golangDataFile, "golang", "go:", false)
+	loadGHSAData(phpDataFile, "php", "php:", true)
 	return nil
 }
 
-func loadGHSAData(ghsaFile, app, prefix string) error {
+func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, ghsaFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
@@ -121,6 +121,9 @@ func loadGHSAData(ghsaFile, app, prefix string) error {
 		}
 
 		moduleName := fmt.Sprintf("%s%s", prefix, r.Package.Name)
+		if lowercase {
+			moduleName = strings.ToLower(moduleName)
+		}
 		affectedVer := getVersion(r.AffectedVersion)
 		fixedVer := getVersion(r.PatchedVersion.Identifier)
 		key := fmt.Sprintf("%s-%s", vulName, moduleName)
