@@ -18,12 +18,15 @@ import (
 
 const (
 	marinerFolder = "mariner-vulnerability"
-	marinerFile   = "cbl-mariner-1.0-oval.xml"
 	notapplicable = "not applicable"
 )
 
 var (
 	ignoredCriterions = []string{}
+	marinerFiles      = []string{
+		"cbl-mariner-1.0-oval.xml",
+		"cbl-mariner-2.0-oval.xml",
+	}
 )
 
 type MarinerFetcher struct{}
@@ -107,23 +110,24 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 	log.Info("fetching mariner vulnerabilities")
 	var reader io.Reader
 
-	//Load file
-	file, err := os.Open(fmt.Sprintf("%s/%s/%s", common.CVESourceRoot, marinerFolder, marinerFile))
-	if err != nil {
-		return resp, err
-	}
-	reader = bufio.NewReader(file)
+	//Load each file
+	for _, marinerFile := range marinerFiles {
+		file, err := os.Open(fmt.Sprintf("%s/%s/%s", common.CVESourceRoot, marinerFolder, marinerFile))
+		if err != nil {
+			return resp, err
+		}
+		reader = bufio.NewReader(file)
 
-	vulns, err := parseMarinerOval(reader)
-	if err != nil {
-		return resp, err
-	}
+		vulns, err := parseMarinerOval(reader)
+		if err != nil {
+			return resp, err
+		}
 
-	// Collect vulnerabilities.
-	for _, v := range vulns {
-		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
+		// Collect vulnerabilities.
+		resp.Vulnerabilities = append(resp.Vulnerabilities, vulns...)
+
+		log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching mariner done")
 	}
-	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching mariner done")
 	return resp, nil
 }
 
