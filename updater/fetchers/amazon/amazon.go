@@ -34,7 +34,8 @@ var (
 	ovals []ovalInfo = []ovalInfo{
 		ovalInfo{"amazon/alas.rss.gz", "Amazon Linux", 1},
 		ovalInfo{"amazon/alas2.rss.gz", "Amazon Linux 2", 2},
-		// ovalInfo{"amazon/alas2022.rss.gz", "Amazon Linux 2022"},
+		ovalInfo{"amazon/alas2022.rss.gz", "Amazon Linux 2022", 2022},
+		ovalInfo{"amazon/alas2023.rss.gz", "Amazon Linux 2023", 2023},
 	}
 )
 
@@ -157,9 +158,15 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 
 		cves := strings.Split(item.CVEs, " ")
 		vuln.CVEs = make([]common.CVE, len(cves))
-		for i, cve := range cves {
-			vuln.CVEs[i].Name = strings.TrimRight(cve, ",")
+		count := 0
+		for _, cve := range cves {
+			name := strings.TrimRight(cve, ",\n ")
+			if name != "" {
+				vuln.CVEs[count].Name = name
+				count++
+			}
 		}
+		vuln.CVEs = vuln.CVEs[:count]
 
 		vuln.IssuedDate, _ = time.Parse(time.RFC1123, item.Issued)
 		vuln.LastModDate, _ = time.Parse(time.RFC1123, item.LastMod)
