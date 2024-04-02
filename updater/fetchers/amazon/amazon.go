@@ -34,7 +34,7 @@ var (
 	ovals []ovalInfo = []ovalInfo{
 		ovalInfo{"amazon/alas.rss.gz", "Amazon Linux", 1},
 		ovalInfo{"amazon/alas2.rss.gz", "Amazon Linux 2", 2},
-		// ovalInfo{"amazon/alas2022.rss.gz", "Amazon Linux 2022"},
+		ovalInfo{"amazon/alas2023.rss.gz", "Amazon Linux 2023", 2023},
 	}
 )
 
@@ -141,7 +141,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 			Link: item.Link,
 		}
 
-		switch tokens[1] {
+		switch strings.ToLower(tokens[1]) {
 		case "(critical):":
 			vuln.FeedRating = "Critical"
 			vuln.Severity = common.Critical
@@ -157,9 +157,15 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 
 		cves := strings.Split(item.CVEs, " ")
 		vuln.CVEs = make([]common.CVE, len(cves))
-		for i, cve := range cves {
-			vuln.CVEs[i].Name = strings.TrimRight(cve, ",")
+		count := 0
+		for _, cve := range cves {
+			name := strings.TrimRight(cve, ",\n ")
+			if name != "" {
+				vuln.CVEs[count].Name = name
+				count++
+			}
 		}
+		vuln.CVEs = vuln.CVEs[:count]
 
 		vuln.IssuedDate, _ = time.Parse(time.RFC1123, item.Issued)
 		vuln.LastModDate, _ = time.Parse(time.RFC1123, item.LastMod)
@@ -170,15 +176,10 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 			vuln.LastModDate = vuln.IssuedDate
 		}
 
-		pkgs := make([]string, len(tokens)-2)
-		for i, token := range tokens[2:] {
-			pkgs[i] = strings.TrimRight(token, ",")
-		}
-
-		if desc, vers, err := getAlas(vuln.Name, vuln.Link, pkgs, net); err != nil {
+		if desc, vers, err := getAlas(vuln.Name, vuln.Link, net); err != nil {
 			log.WithFields(log.Fields{"cve": vuln.Name, "error": err}).Warn("Failed to parse amazon CVE page")
 		} else if len(vers) == 0 {
-			log.WithFields(log.Fields{"cve": vuln.Name, "pkgs": pkgs}).Warn("Failed to parse amazon CVE page, no package version")
+			log.WithFields(log.Fields{"cve": vuln.Name}).Warn("Failed to parse amazon CVE page, no package versions")
 		} else {
 			vuln.Description = strings.TrimSpace(desc)
 
@@ -211,7 +212,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 func (u *AmazonFetcher) Clean() {
 }
 
-func parseAlasPage(name, body, plain string, pkgs []string, net updater.NetInterface) (string, map[string]string, error) {
+func parseAlasPage(name, body, plain string) (string, map[string]string, error) {
 	var description string
 	if a := strings.Index(plain, "Issue Overview:"); a > 0 {
 		if b := strings.Index(plain, "Affected Packages:"); b > 0 {
@@ -229,27 +230,39 @@ func parseAlasPage(name, body, plain string, pkgs []string, net updater.NetInter
 		}
 		plain = strings.ReplaceAll(plain, "<br />", " ")
 		plain = strings.ReplaceAll(plain, "&nbsp;", " ")
-
 		strs := strings.Split(plain, " ")
-		var arch string
+
 		for _, str := range strs {
 			str = strings.TrimSpace(str)
-			if strings.HasSuffix(str, ":") {
-				arch = fmt.Sprintf(".%s", str[:len(str)-1])
-			} else if arch != "" {
-				if s := strings.Index(str, arch); s > 0 {
-					for _, pkg := range pkgs {
-						if strings.HasPrefix(str, pkg) {
-							version := str[len(pkg)+1 : s]
-							if verRegexp.MatchString(version) {
-								pkgVers[pkg] = version
-							}
-						}
+			pkgName := ""
+			if strings.HasSuffix(str, ":") || str == "" {
+				//arch = fmt.Sprintf(".%s", str[:len(str)-1])
+				//skip arch line
+				continue
+			} else {
+				//Find name by locating beginning of version
+				versionStart := regexp.MustCompile(`[a-z+]-[0-9]`)
+				alternateVersionStart := regexp.MustCompile(`[0-9]-[0-9]`)
+				lastDotIndex := strings.LastIndex(str, ".")
+				versionStartIndex := versionStart.FindAllStringIndex(str, -1)
+				if versionStartIndex == nil {
+					versionStartIndex = alternateVersionStart.FindAllStringIndex(str, -1)
+					if versionStartIndex == nil {
+						log.WithFields(log.Fields{"name": name, "str": str}).Warning("Failed to find version start index for ALAS page")
+						continue
 					}
-					if len(pkgVers) == len(pkgs) {
-						return description, pkgVers, nil
-					}
+					//use first match rather than last for this case
+					pkgName = str[:versionStartIndex[0][0]+1]
+					version := str[versionStartIndex[0][0]+2 : lastDotIndex]
+					pkgVers[pkgName] = version
+					continue
 				}
+				pkgName = str[:versionStartIndex[len(versionStartIndex)-1][0]+1]
+				//Find version by taking characters between start of version and last "."
+				version := str[versionStartIndex[len(versionStartIndex)-1][0]+2 : lastDotIndex]
+				//arch := str[lastDotIndex:]
+
+				pkgVers[pkgName] = version
 			}
 		}
 	}
@@ -257,11 +270,11 @@ func parseAlasPage(name, body, plain string, pkgs []string, net updater.NetInter
 	return description, pkgVers, nil
 }
 
-func getAlas(name, link string, pkgs []string, net updater.NetInterface) (string, map[string]string, error) {
+func getAlas(name, link string, net updater.NetInterface) (string, map[string]string, error) {
 	body, plain, err := net.DownloadHTMLPage(link)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return parseAlasPage(name, body, plain, pkgs, net)
+	return parseAlasPage(name, body, plain)
 }
