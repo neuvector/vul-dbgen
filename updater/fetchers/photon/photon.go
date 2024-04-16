@@ -25,6 +25,10 @@ var (
 		photonFile{"photon/cve_data_photon4.0.json.gz", 4},
 		photonFile{"photon/cve_data_photon5.0.json.gz", 5},
 	}
+
+	alternatePackageNames = map[string]string{
+		"expat": "expat-libs",
+	}
 )
 
 var photonSecurityAdvisories = []string{"https://packages.vmware.com/photon/photon_cve_metadata/cve_data_photon1.0.json"}
@@ -133,6 +137,21 @@ func (f *PhotonFetcher) fetchLocal(files []photonFile) ([]common.Vulnerability, 
 				CPEs:       []string{},
 				FeedRating: "",
 			}
+			//If alternate name exists for a fixedin entry, add the alternate name as an additional fixedin entry.
+			for _, fixedIn := range currentVuln.FixedIn {
+				if val, ok := alternatePackageNames[fixedIn.Name]; ok {
+					alternateEntry := common.FeatureVersion{
+						Name: val,
+						Feature: common.Feature{
+							Name:      val,
+							Namespace: namespace,
+						},
+						Version: version,
+					}
+					currentVuln.FixedIn = append(currentVuln.FixedIn, alternateEntry)
+				}
+			}
+
 			results = append(results, currentVuln)
 		}
 	}
