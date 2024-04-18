@@ -243,6 +243,7 @@ func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *co
 	if len(meta.Description) == 0 {
 		meta.Description = v.Description
 	}
+	// Only use the link from CVD, don't copy here
 }
 
 func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common.CVSS) common.Priority {
@@ -374,6 +375,9 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				if len(v.Description) == 0 {
 					v.Description = meta.Description
 				}
+				if len(v.Link) == 0 {
+					v.Link = meta.Link
+				}
 				if cvss3.Score == 0 {
 					cvss3 = meta.CVSSv3
 				}
@@ -417,6 +421,9 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				}
 				if len(app.Description) == 0 {
 					app.Description = meta.Description
+				}
+				if len(app.Link) == 0 {
+					app.Link = meta.Link
 				}
 				if cvss3.Score == 0 {
 					cvss3 = meta.CVSSv3
