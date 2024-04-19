@@ -281,6 +281,7 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 					meta.LastModifiedDate = t
 				}
 			}
+			meta.Link = cveURLPrefix + cve.Cve.ID
 
 			meta.VulnVersions = make([]common.NVDvulnerableVersion, 0)
 			if len(cve.Cve.Configurations) > 0 {
@@ -309,7 +310,7 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 			if common.Debugs.Enabled {
 				if common.Debugs.CVEs.Contains(cve.Cve.ID) {
 					log.WithFields(log.Fields{
-						"name": cve.Cve.ID, "v2": meta.CVSSv2.Score, "v3": meta.CVSSv3.Score,
+						"name": cve.Cve.ID, "v2": meta.CVSSv2.Score, "v3": meta.CVSSv3.Score, "link": meta.Link,
 					}).Debug("DEBUG")
 				}
 			}
@@ -351,6 +352,7 @@ func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata,
 			CVSSv2:           nvd.CVSSv2,
 			PublishedDate:    nvd.PublishedDate,
 			LastModifiedDate: nvd.LastModifiedDate,
+			Link:             nvd.Link,
 		}, true
 	} else {
 		return nil, false

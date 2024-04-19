@@ -20,6 +20,7 @@ type NVDMetadata struct {
 	VulnVersions     []NVDvulnerableVersion
 	PublishedDate    time.Time
 	LastModifiedDate time.Time
+	Link             string
 }
 
 type NVDvulnerableVersion struct {

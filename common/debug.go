@@ -51,7 +51,7 @@ func DEBUG_VULN(x interface{}, msg string) {
 					"name": v.Name, "distro": v.Namespace, "severity": v.Severity, "v2": v.CVSSv2, "v3": v.CVSSv3, "rate": v.FeedRating,
 					"fix": v.FixedIn, "cpes": v.CPEs,
 					"pub": v.IssuedDate.Format(time.RFC3339), "lastMod": v.LastModDate.Format(time.RFC3339),
-					"description": firstN(v.Description, 64),
+					"description": firstN(v.Description, 64), "link": v.Link,
 				}).Debug(msg)
 			}
 		}
@@ -61,7 +61,7 @@ func DEBUG_VULN(x interface{}, msg string) {
 				log.WithFields(log.Fields{
 					"name": app.VulName, "module": app.ModuleName, "severity": app.Severity, "v2": app.Score, "v3": app.ScoreV3,
 					"pub": app.IssuedDate.Format(time.RFC3339), "lastMod": app.LastModDate.Format(time.RFC3339),
-					"description": firstN(app.Description, 64),
+					"description": firstN(app.Description, 64), "link": app.Link,
 				}).Debug(msg)
 			}
 		}
