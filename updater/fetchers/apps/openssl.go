@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,13 +17,14 @@ const (
 	openssluri = "https://www.openssl.org/news/vulnerabilities.html"
 )
 
+var cveNameRegexp = regexp.MustCompile(`<a href="(.*)" name="CVE-([0-9\-]+)">`)
+var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+)`)
+var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
+var verRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+).*?\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`) // ungreedy
+var severityRegexp = regexp.MustCompile(`\[([a-zA-Z]+) severity\]`)
+
 // FetchUpdate gets vulnerability updates from the openssl.
 func opensslUpdate() error {
-	var cveNameRegexp = regexp.MustCompile(`<a href="(.*)" name="CVE-([0-9\-]+)">`)
-	var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\s]+)`)
-	var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
-	var severityRegexp = regexp.MustCompile(`\[([a-zA-Z]+) severity\]`)
-
 	var cveCount int
 	log.Info("fetching openssl vulnerabilities")
 
@@ -57,27 +59,15 @@ func opensslUpdate() error {
 		if !strings.HasPrefix(cveNumber, "201") {
 			continue
 		}
-		match = fixedVerRegexp.FindAllStringSubmatch(line, -1)
-		if len(match) > 0 {
-			modVul.FixedVer = make([]common.AppModuleVersion, 0)
-			for _, m := range match {
-				fv := getOpensslFixedVersion(m[1])
-				modVul.FixedVer = append(modVul.FixedVer, fv...)
-			}
-		} else {
-			log.Error("No fixed version:", line)
-		}
-		match = affectedVerRegexp.FindAllStringSubmatch(line, -1)
-		if len(match) > 0 {
-			modVul.AffectedVer = make([]common.AppModuleVersion, 0)
-			for i, m := range match {
-				av := getOpensslAffectedVersion(i, m[1])
-				modVul.AffectedVer = append(modVul.AffectedVer, av...)
-			}
-		} else {
-			log.Error("No affected version:", line)
+
+		vulName := "CVE-" + cveNumber
+
+		fver, aver, err := getOpensslVulVersion(vulName, line)
+		if err != nil {
+			log.WithFields(log.Fields{"error": err}).Error()
 			continue
 		}
+
 		match = severityRegexp.FindAllStringSubmatch(line, -1)
 		if len(match) > 0 {
 			s := match[0]
@@ -85,6 +75,7 @@ func opensslUpdate() error {
 		} else {
 			continue
 		}
+
 		a0 := strings.Index(line, "<dd>")
 		a1 := strings.Index(line, "<ul>")
 		if a0 > 0 && a1 > a0 {
@@ -95,12 +86,14 @@ func opensslUpdate() error {
 		}
 
 		modVul.Description = strings.Trim(description, "\n")
-		modVul.VulName = "CVE-" + cveNumber
+		modVul.VulName = vulName
 		modVul.AppName = "openssl"
 		modVul.ModuleName = "openssl"
 		modVul.Link = link
 		modVul.Score = 0
-		if severity == "Critical" || severity == "High" {
+		if severity == "Critical" {
+			modVul.Severity = common.Critical
+		} else if severity == "High" {
 			modVul.Severity = common.High
 		} else if severity == "Moderate" {
 			modVul.Severity = common.Medium
@@ -110,6 +103,8 @@ func opensslUpdate() error {
 			continue
 		}
 		modVul.CVEs = []string{modVul.VulName}
+		modVul.FixedVer = fver
+		modVul.AffectedVer = aver
 
 		addAppVulMap(&modVul)
 		cveCount++
@@ -122,34 +117,42 @@ func opensslUpdate() error {
 		return nil
 	}
 }
-func getOpensslFixedVersion(str string) []common.AppModuleVersion {
-	modVerArr := make([]common.AppModuleVersion, 0)
-	mv := common.AppModuleVersion{OpCode: "", Version: strings.TrimSpace(str)}
-	modVerArr = append(modVerArr, mv)
-	return modVerArr
-}
-func getOpensslAffectedVersion(i int, str string) []common.AppModuleVersion {
-	modVerArr := make([]common.AppModuleVersion, 0)
 
-	vers := strings.Split(string(str), ",")
-	for j, v := range vers {
-		if strings.Contains(v, "-") {
-			subvs := strings.Split(v, "-")
-			if len(subvs) == 2 {
-				if i > 0 || j > 0 {
-					mv1 := common.AppModuleVersion{OpCode: "orgteq", Version: strings.TrimSpace(subvs[0])}
-					modVerArr = append(modVerArr, mv1)
+func getOpensslVulVersion(cve, line string) ([]common.AppModuleVersion, []common.AppModuleVersion, error) {
+	match := verRegexp.FindAllStringSubmatch(line, -1)
+	if len(match) > 0 {
+		fver := make([]common.AppModuleVersion, 0)
+		aver := make([]common.AppModuleVersion, 0)
+		count := 0
+
+		for i, m := range match {
+			if len(m) >= 2 {
+				fv := strings.TrimSpace(m[1])
+				fver = append(fver, common.AppModuleVersion{Version: fv})
+
+				var av string
+				if strings.HasPrefix(m[2], "since ") {
+					av = strings.TrimSpace(strings.TrimSpace(m[2][6:]))
 				} else {
-					mv1 := common.AppModuleVersion{OpCode: "gteq", Version: strings.TrimSpace(subvs[0])}
-					modVerArr = append(modVerArr, mv1)
+					av = strings.TrimSpace(strings.TrimSpace(m[2]))
 				}
-				mv2 := common.AppModuleVersion{OpCode: "lteq", Version: strings.TrimSpace(subvs[1])}
-				modVerArr = append(modVerArr, mv2)
+
+				if i == 0 {
+					aver = append(aver, common.AppModuleVersion{OpCode: "lt", Version: fv})
+				} else {
+					aver = append(aver, common.AppModuleVersion{OpCode: "orlt", Version: fv})
+				}
+				aver = append(aver, common.AppModuleVersion{OpCode: "gteq", Version: av})
+				count += 1
+			} else {
+				log.WithFields(log.Fields{"match": m}).Error("Unexpected version")
 			}
-		} else {
-			mv := common.AppModuleVersion{OpCode: "", Version: strings.TrimSpace(v)}
-			modVerArr = append(modVerArr, mv)
+		}
+
+		if count > 0 {
+			return fver, aver, nil
 		}
 	}
-	return modVerArr
+
+	return nil, nil, errors.New("No version info is found")
 }

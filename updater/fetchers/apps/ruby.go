@@ -164,10 +164,6 @@ func parseRubyYml(yaml string) *rubyVul {
 		}
 	}
 
-	// if j.cve == "CVE-2018-3760" {
-	// 	fmt.Printf("============ meta %+v\n", m)
-	// }
-
 	return &j
 }
 
@@ -219,17 +215,6 @@ func rubyVulToModule(jv *rubyVul) *common.AppModuleVul {
 	// The logic to convert from patched version to affected version is not correct.
 	// In scanning, ruby affected version is ignored.
 	mv.AffectedVer = generateAffectedVer(jv.patched_versions)
-
-	/*
-		if jv.cve == "CVE-2018-3760" {
-			for _, pv := range jv.patched_versions {
-				fmt.Printf("============ jv.patched %+v\n", pv)
-			}
-			fmt.Printf("============ mv.FixedVer  %+v\n", mv.FixedVer)
-			fmt.Printf("============ mv.unaffectedVer  %+v\n", mv.UnaffectedVer)
-			fmt.Printf("============ mv.affectedVer  %+v\n", mv.AffectedVer)
-		}
-	*/
 
 	return mv
 }
