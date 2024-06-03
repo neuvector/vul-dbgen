@@ -28,6 +28,7 @@ Generate NeuVector vulnerability database
 | nginx | http://nginx.org/en/security_advisories.html |
 | npm | https://github.com/advisories |
 | openssl | https://www.openssl.org/news/vulnerabilities.html |
+| php | https://github.com/advisories |
 | python | https://github.com/advisories |
 | ruby | https://github.com/rubysec/ruby-advisory-db |
 
