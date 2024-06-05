@@ -636,10 +636,8 @@ func toFeatureVersions(ros int, rhsa, cvename string, criteria criteria) []commo
 					featureVersion.Feature.Name = strings.TrimSpace(c.Comment[:a])
 				}
 				featureVersion.Version = common.MinVersion
-			} else {
-				if a := strings.Index(c.Comment, " is installed"); a > 0 {
-					featureVersion.Feature.Name = strings.TrimSpace(c.Comment[:a])
-				}
+			} else if strings.Contains(c.Comment, " is installed") {
+				featureVersion.Feature.Name = strings.TrimSpace(c.Comment[:strings.Index(c.Comment, " is installed")])
 				featureVersion.Version = common.MaxVersion
 			}
 		}
