@@ -143,7 +143,9 @@ func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 			}
 
 			severity := strings.ToLower(r.Advisory.Severity)
-			if severity == "high" || severity == "critical" {
+			if severity == "critical" {
+				v.Severity = common.Critical
+			} else if severity == "high" {
 				v.Severity = common.High
 			} else if severity == "moderate" {
 				v.Severity = common.Medium

@@ -249,7 +249,9 @@ func enrichDistroMeta(meta *common.NVDMetadata, v *common.Vulnerability, cve *co
 func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common.CVSS) common.Priority {
 	// For NVSHAS-4709, always set the severity by CVSS scores
 	var severity common.Priority
-	if maxCVSSv3.Score >= 7 || maxCVSSv2.Score >= 7 {
+	if maxCVSSv3.Score >= 9 || maxCVSSv2.Score >= 9 {
+		severity = common.Critical
+	} else if maxCVSSv3.Score >= 7 || maxCVSSv2.Score >= 7 {
 		severity = common.High
 	} else if maxCVSSv3.Score >= 4 || maxCVSSv2.Score >= 4 {
 		severity = common.Medium
@@ -261,6 +263,8 @@ func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common
 
 	if maxCVSSv3.Score == 0 {
 		switch severity {
+		case common.Critical:
+			maxCVSSv3.Score = 9
 		case common.High:
 			maxCVSSv3.Score = 7
 		case common.Medium:
@@ -271,6 +275,8 @@ func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common
 	}
 	if maxCVSSv2.Score == 0 {
 		switch severity {
+		case common.Critical:
+			maxCVSSv2.Score = 9
 		case common.High:
 			maxCVSSv2.Score = 7
 		case common.Medium:

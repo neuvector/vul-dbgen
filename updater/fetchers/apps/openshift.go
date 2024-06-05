@@ -13,7 +13,7 @@ func openshiftUpdate() error {
 		Description: "A flaw has been detected in kubernetes which allows privilege escalation and access to sensitive information in OpenShift products and services.  This issue has been assigned CVE-2018-1002105 and has a security impact of Critical.",
 		Link:        "https://access.redhat.com/security/vulnerabilities/3716411",
 		Score:       9.8,
-		Severity:    common.High,
+		Severity:    common.Critical,
 		AffectedVer: []common.AppModuleVersion{
 			common.AppModuleVersion{OpCode: "lt", Version: "3.2.1.34-2,3.2"},
 			common.AppModuleVersion{OpCode: "orlt", Version: "3.11.43-1,3.11"},
