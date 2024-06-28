@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/vul-dbgen/common"
+	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater"
 )
 
@@ -32,7 +34,14 @@ var (
 		ovalInfo{"suse/opensuse.leap.15.2.xml.gz", "openSUSE Leap 15.2 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.1.xml.gz", "openSUSE Leap 15.1 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.0.xml.gz", "openSUSE Leap 15.0 ", "sles:l"},
+		ovalInfo{"suse/opensuse.tumbleweed.xml.gz", "openSUSE Tumbleweed ", "sles:tw"},
 	}
+
+	noVersion = map[string]struct{}{
+		"suse/opensuse.tumbleweed.xml.gz": {},
+	}
+
+	cveMatch = "CVE-[0-9]+-[0-9]+"
 )
 
 // Feed format
@@ -180,6 +189,7 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error
 	// at least one package.
 	for _, definition := range ov.Definitions {
 		cvename := name(definition)
+		dedup := utils.NewSet()
 
 		if strings.HasPrefix(cvename, "CVE-") {
 			if year, e := common.ParseYear(cvename[4:]); e != nil {
@@ -214,9 +224,16 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error
 				vulnerability.FixedIn = append(vulnerability.FixedIn, p)
 			}
 			for _, r := range definition.Cves {
-				vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
-					Name: r.ID,
-				})
+				reg := regexp.MustCompile(cveMatch)
+				cve := reg.FindString(r.ID)
+				if cve != "" && !dedup.Contains(cve) {
+					dedup.Add(cve)
+					vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
+						Name: cve,
+					})
+				} else {
+					log.WithFields(log.Fields{"definition": definition.Title, "id": r.ID}).Debug("defintion entry missing cve ID")
+				}
 			}
 			if vulnerability.IssuedDate.IsZero() {
 				vulnerability.IssuedDate = vulnerability.LastModDate
@@ -343,7 +360,11 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 		for _, c := range criterions {
 			if strings.HasPrefix(c.Comment, o.name) && strings.Contains(c.Comment, " is installed") {
 				if ti, ok := testMap[c.TestRef]; ok {
-					fv.Feature.Namespace = fmt.Sprintf("%s%s", o.nsPrefix, ti.version)
+					if _, ok := noVersion[o.filename]; ok {
+						fv.Feature.Namespace = o.nsPrefix
+					} else {
+						fv.Feature.Namespace = fmt.Sprintf("%s%s", o.nsPrefix, ti.version)
+					}
 				} else {
 					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Warn("Failed locate test record")
 				}
