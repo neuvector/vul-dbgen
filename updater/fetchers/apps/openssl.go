@@ -17,11 +17,11 @@ const (
 	openssluri = "https://www.openssl.org/news/vulnerabilities.html"
 )
 
-var cveNameRegexp = regexp.MustCompile(`<a href="(.*)" name="CVE-([0-9\-]+)">`)
+var cveNameRegexp = regexp.MustCompile(`="(.*)">CVE-([0-9\-]+)`)
 var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+)`)
 var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
 var verRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+).*?\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`) // ungreedy
-var severityRegexp = regexp.MustCompile(`\[([a-zA-Z]+) severity\]`)
+var severityRegexp = regexp.MustCompile(`[[a-zA-Z]+ severity]`)
 
 // FetchUpdate gets vulnerability updates from the openssl.
 func opensslUpdate() error {
@@ -37,7 +37,7 @@ func opensslUpdate() error {
 	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	cves := strings.Split(string(body), "<dt>")
+	cves := strings.Split(string(body), "<p><a href")
 	for id, cve := range cves {
 		if id == 0 {
 			//skip the first header summary
@@ -71,21 +71,26 @@ func opensslUpdate() error {
 		match = severityRegexp.FindAllStringSubmatch(line, -1)
 		if len(match) > 0 {
 			s := match[0]
-			severity = s[1]
+			severityStr := strings.Split(s[0], " ")[0]
+			severityStr = strings.Replace(severityStr, "[", "", 1)
+			severity = severityStr
 		} else {
 			continue
 		}
 
-		a0 := strings.Index(line, "<dd>")
+		a0 := strings.Index(line, "<p>")
 		a1 := strings.Index(line, "<ul>")
 		if a0 > 0 && a1 > a0 {
-			description = line[a0+4 : a1]
+			description = line[a0+3 : a1]
+			description = strings.ReplaceAll(description, "<p>", "")
+			description = strings.ReplaceAll(description, "</p>", "")
+			description = strings.ReplaceAll(description, "\n", "")
 		} else {
 			log.Error("No description:", line)
 			continue
 		}
 
-		modVul.Description = strings.Trim(description, "\n")
+		modVul.Description = description
 		modVul.VulName = vulName
 		modVul.AppName = "openssl"
 		modVul.ModuleName = "openssl"
