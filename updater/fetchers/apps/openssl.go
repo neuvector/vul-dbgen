@@ -37,7 +37,7 @@ func opensslUpdate() error {
 	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	cves := strings.Split(string(body), "<p><a href")
+	cves := strings.Split(string(body), "h4 id")
 	for id, cve := range cves {
 		if id == 0 {
 			//skip the first header summary
