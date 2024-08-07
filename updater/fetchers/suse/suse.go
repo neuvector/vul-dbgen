@@ -35,13 +35,17 @@ var (
 		ovalInfo{"suse/opensuse.leap.15.1.xml.gz", "openSUSE Leap 15.1 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.0.xml.gz", "openSUSE Leap 15.0 ", "sles:l"},
 		ovalInfo{"suse/opensuse.tumbleweed.xml.gz", "openSUSE Tumbleweed ", "sles:tw"},
+		ovalInfo{"suse/suse.liberty.linux.7.xml.gz", "SUSE Liberty Linux 7", "sles:lib"},
+		ovalInfo{"suse/suse.liberty.linux.8.xml.gz", "SUSE Liberty Linux 8", "sles:lib"},
+		ovalInfo{"suse/suse.liberty.linux.9.xml.gz", "SUSE Liberty Linux 9", "sles:lib"},
 	}
 
 	noVersion = map[string]struct{}{
 		"suse/opensuse.tumbleweed.xml.gz": {},
 	}
 
-	cveMatch = "CVE-[0-9]+-[0-9]+"
+	LibertyFirstYear = 2004
+	cveMatch         = "CVE-[0-9]+-[0-9]+"
 )
 
 // Feed format
@@ -195,7 +199,9 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error
 			if year, e := common.ParseYear(cvename[4:]); e != nil {
 				log.WithFields(log.Fields{"cve": cvename}).Warn("Unexpected vulnerability year")
 				continue
-			} else if year < common.FirstYear {
+			} else if year < common.FirstYear && !strings.Contains(o.filename, "liberty") {
+				continue
+			} else if year < LibertyFirstYear && strings.Contains(o.filename, "liberty") {
 				continue
 			}
 		} else {
