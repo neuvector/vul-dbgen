@@ -22,6 +22,7 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/oracle"
 	_ "github.com/vul-dbgen/updater/fetchers/photon"
 	_ "github.com/vul-dbgen/updater/fetchers/rhel2"
+	_ "github.com/vul-dbgen/updater/fetchers/rocky"
 	_ "github.com/vul-dbgen/updater/fetchers/suse"
 	_ "github.com/vul-dbgen/updater/fetchers/ubuntu"
 )
