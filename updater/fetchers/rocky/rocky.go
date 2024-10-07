@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vul-dbgen/common"
 	"github.com/vul-dbgen/updater"
@@ -13,68 +14,42 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var endpoint = "https://apollo.build.resf.org/api/v3/advisories/"
+var endpoint = "https://errata.rockylinux.org/api/v2/advisories?filters.product=&filters.fetchRelated=true&"
+var limit = int64(100)
 
 type RockyFetcher struct{}
 
 type apiResponse struct {
 	Advisories []advisory `json:"advisories"`
+	Total      int64      `json:"total"`
 }
 
 type advisory struct {
-	Id                  int          `json:"id"`
-	Created_at          string       `json:"created_at"`
-	Updated_at          string       `json:"updated_at"`
-	Published_at        string       `json:"published_at"`
-	Name                string       `json:"name"`
-	Synopsis            string       `json:"synopsis"`
-	Description         string       `json:"description"`
-	Kind                string       `json:"kind"`
-	Severity            string       `json:"severity"`
-	Topic               string       `json:"topic"`
-	Red_hat_advisory_id int          `json:"red_hat_advisory_id"`
-	AffectedProducts    []Product    `json:"affected_products"`
-	Cves                []cve        `json:"cves"`
-	Packages            []ApiPackage `json:"packages"`
-	Fixes               []Fix        `json:"fixes"`
+	AffectedProducts []string                       `json:"affectedProducts"`
+	Cves             []cve                          `json:"cves"`
+	Description      string                         `json:"description"`
+	Fixes            []fix                          `json:"fixes"`
+	Name             string                         `json:"name"`
+	PublishedAt      string                         `json:"publishedAt"`
+	RPMs             map[string]map[string][]string `json:"rpms"`
+	Severity         string                         `json:"severity"`
 }
 
-type cve struct {
-	Id         int    `json:"id"`
-	Cve        string `json:"cve"`
-	CvssVector string `json:"cvss3_scoring_vector"`
-	CvssScore  string `json:"cvss3_base_score"`
-	Cwe        string `json:"cwe"`
-}
-
-type ApiPackage struct {
-	Id            int    `json"id"`
-	Nevra         string `json:"nevra"`
-	Checksum      string `json:"checksum"`
-	ChecksumType  string `json:"checksum_type"`
-	ModuleContext string `json:"module_context"`
-	ModuleName    string `json:"module_name"`
-	ModuleStream  string `json:"module_stream"`
-	ModuleVersion string `json:"module_version"`
-	RepoName      string `json:"repo_name"`
-	PackageName   string `json:"package_name"`
-	ProductName   string `json:"product_name"`
-}
-
-type Fix struct {
-	Id          int    `json:"id"`
-	TicketId    string `json:"ticket_id"`
-	Source      string `json:"source"`
+type fix struct {
 	Description string `json:"description"`
+	SourceBy    string `json:"sourceBy"`
+	SourceLink  string `json:"sourceLink"`
+	Ticket      string `json:"ticket"`
 }
 
-type Product struct {
-	Id           int    `json:"id"`
-	Variant      string `json:"variant"`
-	Name         string `json:"name"`
-	MajorVersion int    `json:"major_version"`
-	MinorVersion int    `json:"minor_version"`
-	Arch         string `json:"arch"`
+// cve cvss score are currently unfilled by API
+type cve struct {
+	CvssVector string `json:"cvss3ScoringVector"`
+	Cvss3Score string `json:"cvss3BaseScore"`
+	Cwe        string `json:"cwe"`
+	Name       string `json:"name"`
+	SourceBy   string `json:"sourceBy"`
+	SourceLink string `json:"sourceLink"`
 }
 
 func init() {
@@ -89,146 +64,168 @@ func (f *RockyFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 		log.WithFields(log.Fields{"err": err}).Error("Error fetching rocky remote")
 	}
 	//process data into standard format
-	resp.Vulnerabilities = parseRockyJSON(remoteResponse)
-
+	resp.Vulnerabilities = translateRockyJSON(remoteResponse)
 	log.WithFields(log.Fields{"Vulnerabilities": len(resp.Vulnerabilities)}).Info("fetching rocky done")
 	return resp, nil
 }
 
 // fetchRemote retrieves and stores the api json response.
 func (f *RockyFetcher) fetchRemote() (*apiResponse, error) {
-	req, err := http.NewRequest("GET", endpoint, nil)
+	response, err := fetchRockyLinuxErrata()
 	if err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("Error creating rocky linux request")
 		return nil, err
 	}
-	client := http.Client{}
-	r, err := client.Do(req)
-	if err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("Error retrieving rocky linux response")
-		return nil, err
-	}
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("Error reading rocky linux response")
-		return nil, err
-	}
-	var jsonResponse apiResponse
-	err = json.Unmarshal(body, &jsonResponse)
-	if err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("Error unmarshalling rocky linux response")
-	}
-	log.WithFields(log.Fields{"number of advisories": len(jsonResponse.Advisories)}).Debug("Rocky reponse")
 
-	return &jsonResponse, nil
+	return response, nil
 }
 
-// pruneDuplicates returns a slice with all duplicate entries removed from the input slice.
-func pruneDuplicates(slice []common.FeatureVersion) []common.FeatureVersion {
-	prunedList := []common.FeatureVersion{}
-	set := map[string]common.FeatureVersion{}
-	for _, entry := range slice {
-		if _, ok := set[entry.Feature.Name+":"+entry.Version.String()]; !ok {
-			set[entry.Feature.Name+":"+entry.Version.String()] = entry
+// translateRockyJSON translates the apiResponse struct to an array of common.Vulnerability to be used in fetcher response later.
+func translateRockyJSON(response *apiResponse) []common.Vulnerability {
+	vulns := []common.Vulnerability{}
+
+	for _, advisory := range response.Advisories {
+		fixedIns := map[string][]common.FeatureVersion{}
+		for key, rpms := range advisory.RPMs {
+			nvras := rpms["nvras"]
+			namespace := productToNamespace(key)
+			fixedIns[namespace] = nvraToFeatureVersion(nvras, namespace)
 		}
-	}
-
-	for _, val := range set {
-		prunedList = append(prunedList, val)
-	}
-
-	return prunedList
-}
-
-func makeFV(fixPackage ApiPackage, majorVersion int) common.FeatureVersion {
-	//Split the nevra for the version
-	start := strings.Index(fixPackage.Nevra, ":")
-	last := strings.LastIndex(fixPackage.Nevra, ".")
-	last = strings.LastIndex(fixPackage.Nevra[:last], ".")
-	verString := fixPackage.Nevra[start-1 : last]
-	version, err := common.NewVersion(verString)
-	if err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("Error making rocky linux feature version")
-	}
-
-	fixed := common.FeatureVersion{
-		Feature: common.Feature{
-			Name:      fixPackage.PackageName,
-			Namespace: "rocky:" + strconv.Itoa(majorVersion),
-		},
-		Version: version,
-	}
-	return fixed
-}
-
-// parseRockyJSON takes the data and formats it into the format []common.Vulnerability.
-func parseRockyJSON(data *apiResponse) []common.Vulnerability {
-	var vulns []common.Vulnerability
-	vulMap := map[string]common.Vulnerability{}
-
-	//Iterate over advisory and make the corresponding vulnerability.
-	for _, advisory := range data.Advisories {
-		Namespaces := getNamespaces(advisory.AffectedProducts)
-		vuln := common.Vulnerability{
+		entry := common.Vulnerability{
 			Name:        advisory.Name,
 			Description: advisory.Description,
+			Link:        "",
 			Severity:    translateSeverity(advisory.Severity),
+			IssuedDate:  issuedDate(advisory.PublishedAt),
+			CVEs:        []common.CVE{},
 		}
-		fixedIns := []common.FeatureVersion{}
-		for _, fix := range advisory.Packages {
-			fv := makeFV(fix, advisory.AffectedProducts[0].MajorVersion)
-			fixedIns = append(fixedIns, fv)
-		}
-		fixedIns = pruneDuplicates(fixedIns)
-		vuln.FixedIn = fixedIns
-
-		//Add entry for each unique namespace
-		for _, ns := range Namespaces {
-			//Check if the advisory already exists in the namespace
-			vuln.Namespace = ns
-			if _, ok := vulMap[ns+":"+advisory.Name]; !ok {
-				vulMap[ns+":"+advisory.Name] = vuln
-			} else {
-				log.WithFields(log.Fields{"Name": advisory.Name}).Debug("Duplicate rocky advisory entry")
-				continue
+		//populate CVEs
+		for _, cve := range advisory.Cves {
+			commonCVE := common.CVE{
+				Name: cve.Name,
 			}
+			entry.CVEs = append(entry.CVEs, commonCVE)
 		}
-
+		//For each potential affected product we need to consider namespace changing
+		for _, productName := range advisory.AffectedProducts {
+			entry.Namespace = productToNamespace(productName)
+			if fi, ok := fixedIns[entry.Namespace]; ok {
+				entry.FixedIn = fi
+			}
+			vulns = append(vulns, entry)
+		}
 	}
-
-	//Make slice from map
-	for _, val := range vulMap {
-		vulns = append(vulns, val)
-	}
-
 	return vulns
 }
 
-func getNamespaces(affectedProducts []Product) []string {
-	nsMap := map[string]string{}
-	for _, product := range affectedProducts {
-		majorVersion := strconv.Itoa(product.MajorVersion)
-		if _, ok := nsMap["rocky:"+majorVersion]; !ok {
-			nsMap["rocky:"+majorVersion] = "rocky:" + majorVersion
+func productToNamespace(product string) string {
+	lastSpace := strings.LastIndex(product, " ")
+	majorVersion := strings.Trim(product[lastSpace:], " ")
+	return "rocky:" + majorVersion
+}
+
+func issuedDate(dateString string) time.Time {
+	defTime := strings.Split(dateString, "T")[0]
+	if t, err := time.Parse("2006-01-02", defTime); err == nil {
+		return t
+	} else {
+		return time.Time{}
+	}
+}
+
+func nvraToFeatureVersion(nvras []string, namespace string) []common.FeatureVersion {
+	results := []common.FeatureVersion{}
+	//map with key modulename:moduleversion to prevent duplicates
+	set := map[string]struct{}{}
+
+	for _, nvraString := range nvras {
+		//Remove rpm and arch sections
+		lastPeriod := strings.LastIndex(nvraString, ".")
+		nvraString = nvraString[:lastPeriod]
+		lastPeriod = strings.LastIndex(nvraString, ".")
+		nvraString = nvraString[:lastPeriod]
+		//Get module name from section before epoch
+		epochIndex := strings.Index(nvraString, ":")
+		moduleName := nvraString[:epochIndex-2]
+		//Remaining section is version
+		moduleVersion := nvraString[epochIndex-1:]
+		key := moduleName + ":" + moduleVersion
+		if _, ok := set[key]; ok {
+			continue
+		} else {
+			set[key] = struct{}{}
+		}
+
+		fvVer, err := common.NewVersion(moduleVersion)
+		if err != nil {
+			log.WithFields(log.Fields{"err": err, "nvra": nvraString, "ftVer": fvVer}).Debug("Error converting nvra to FeatureVersion")
+		}
+		entry := common.FeatureVersion{
+			Feature: common.Feature{
+				Name:      moduleName,
+				Namespace: namespace,
+			},
+			Version: fvVer,
+		}
+		results = append(results, entry)
+	}
+
+	return results
+}
+
+func fetchRockyLinuxErrata() (*apiResponse, error) {
+	results := &apiResponse{}
+	page := 0
+	count := int64(0)
+	total := int64(1)
+	count2 := 0
+	for count < total {
+		req, err := http.NewRequest("GET", endpoint+"page="+strconv.Itoa(page)+"&limit="+strconv.FormatInt(limit, 10), nil)
+		if err != nil {
+			log.WithFields(log.Fields{"err": err}).Error("Error creating rocky linux request")
+			return nil, err
+		}
+		client := http.Client{}
+		r, err := client.Do(req)
+		if err != nil {
+			log.WithFields(log.Fields{"err": err}).Error("Error retrieving rocky linux response")
+			return nil, err
+		}
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.WithFields(log.Fields{"err": err}).Error("Error reading rocky linux response")
+			return nil, err
+		}
+		var jsonResponse apiResponse
+		err = json.Unmarshal(body, &jsonResponse)
+		if err != nil {
+			log.WithFields(log.Fields{"err": err}).Error("Error unmarshalling rocky linux response")
+		}
+		results.Advisories = append(results.Advisories, jsonResponse.Advisories...)
+		total = jsonResponse.Total
+		count += limit
+		page++
+		for _, adv := range jsonResponse.Advisories {
+			if len(adv.Cves) > 0 || len(adv.Fixes) > 0 {
+				count2++
+			}
 		}
 	}
-	results := []string{}
-	for _, val := range nsMap {
-		results = append(results, val)
-	}
-	return results
+	log.WithFields(log.Fields{"number of advisories": len(results.Advisories)}).Debug("Rocky reponse")
+	return results, nil
 }
 
 func translateSeverity(incSev string) common.Priority {
 	var severity common.Priority
-	switch strings.ToLower(incSev) {
-	case "important":
+	switch incSev {
+	case "SEVERITY_CRITICAL":
+		severity = common.Critical
+	case "SEVERITY_IMPORTANT":
 		severity = common.High
-	case "moderate":
+	case "SEVERITY_MODERATE":
 		severity = common.Medium
-	case "low":
+	case "SEVERITY_LOW":
 		severity = common.Low
-	case "none":
+	case "SEVERITY_UNKNOWN":
 		severity = common.Low
 	default:
 		log.WithFields(log.Fields{"sev": incSev}).Debug("unhandled severity")
