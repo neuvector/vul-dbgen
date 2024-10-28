@@ -32,3 +32,12 @@ Generate NeuVector vulnerability database
 | python | https://github.com/advisories |
 | ruby | https://github.com/rubysec/ruby-advisory-db |
 
+# License
+
+Copyright © 2016-2024 [NeuVector Inc](https://neuvector.com). All Rights Reserved
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
