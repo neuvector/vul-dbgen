@@ -237,8 +237,6 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error
 					vulnerability.CVEs = append(vulnerability.CVEs, common.CVE{
 						Name: cve,
 					})
-				} else {
-					log.WithFields(log.Fields{"definition": definition.Title, "id": r.ID}).Debug("defintion entry missing cve ID")
 				}
 			}
 			if vulnerability.IssuedDate.IsZero() {
@@ -254,7 +252,6 @@ func parseOVAL(o *ovalInfo, ovalReader io.Reader) ([]common.Vulnerability, error
 			// }
 		}
 	}
-
 	return vulnerabilities, nil
 }
 
@@ -371,8 +368,6 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 					} else {
 						fv.Feature.Namespace = fmt.Sprintf("%s%s", o.nsPrefix, ti.version)
 					}
-				} else {
-					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Warn("Failed locate test record")
 				}
 			} else if !strings.HasPrefix(c.Comment, "SUSE") && (strings.Contains(c.Comment, " is installed") || strings.Contains(c.Comment, " is not affected")) {
 				// This is the package line
@@ -384,8 +379,6 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 
 					fv.Version = ti.version
 					fv.Feature.Name = ti.name
-				} else {
-					log.WithFields(log.Fields{"cve": cvename, "test": c.TestRef}).Warn("Failed locate test record")
 				}
 			}
 		}
