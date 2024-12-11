@@ -20,8 +20,9 @@ const (
 var cveNameRegexp = regexp.MustCompile(`="(.*)">CVE-([0-9\-]+)`)
 var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+)`)
 var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
-var verRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+).*?\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`) // ungreedy
-var severityRegexp = regexp.MustCompile(`[[a-zA-Z]+ severity]`)
+var verRegexp = regexp.MustCompile(`<li>from\s*\n*([0-9a-z\.\-\s]+) before\s*\n*([0-9a-z\.\-\s]+)<\/li>`) // ungreedy
+var severityRegexp = regexp.MustCompile(`<dt>Severity<\/dt>[\S+\n\r\s]+<dd>([a-zA-Z]+)<\/dd>`)
+var descriptionRegexp = regexp.MustCompile(`<p>([a-zA-Z[\S+\n\r\s]+)<\/p>`)
 
 // FetchUpdate gets vulnerability updates from the openssl.
 func opensslUpdate() error {
@@ -70,21 +71,14 @@ func opensslUpdate() error {
 
 		match = severityRegexp.FindAllStringSubmatch(line, -1)
 		if len(match) > 0 {
-			s := match[0]
-			severityStr := strings.Split(s[0], " ")[0]
-			severityStr = strings.Replace(severityStr, "[", "", 1)
-			severity = severityStr
+			severity = match[0][1]
 		} else {
 			continue
 		}
 
-		a0 := strings.Index(line, "<p>")
-		a1 := strings.Index(line, "<ul>")
-		if a0 > 0 && a1 > a0 {
-			description = line[a0+3 : a1]
-			description = strings.ReplaceAll(description, "<p>", "")
-			description = strings.ReplaceAll(description, "</p>", "")
-			description = strings.ReplaceAll(description, "\n", "")
+		match = descriptionRegexp.FindAllStringSubmatch(line, -1)
+		if len(match) > 0 {
+			description = match[0][1]
 		} else {
 			log.Error("No description:", line)
 			continue
@@ -132,17 +126,18 @@ func getOpensslVulVersion(cve, line string) ([]common.AppModuleVersion, []common
 
 		for i, m := range match {
 			if len(m) >= 2 {
-				fv := strings.TrimSpace(m[1])
+				fv := strings.TrimSpace(m[2])
 				fver = append(fver, common.AppModuleVersion{Version: fv})
 
 				var av string
-				if strings.HasPrefix(m[2], "since ") {
-					av = strings.TrimSpace(strings.TrimSpace(m[2][6:]))
+				if strings.HasPrefix(m[1], "since ") {
+					av = strings.TrimSpace(strings.TrimSpace(m[1][6:]))
 				} else {
-					av = strings.TrimSpace(strings.TrimSpace(m[2]))
+					av = strings.TrimSpace(strings.TrimSpace(m[1]))
 				}
 
 				if i == 0 {
+					fv := strings.TrimSpace(m[2])
 					aver = append(aver, common.AppModuleVersion{OpCode: "lt", Version: fv})
 				} else {
 					aver = append(aver, common.AppModuleVersion{OpCode: "orlt", Version: fv})
