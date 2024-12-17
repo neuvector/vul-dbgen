@@ -18,6 +18,7 @@ const (
 )
 
 var cveNameRegexp = regexp.MustCompile(`="(.*)">CVE-([0-9\-]+)`)
+var cveRecordLinkRegexp = regexp.MustCompile(`="(.*) target(.*)>CVE Record`)
 var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+)`)
 var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
 var verRegexp = regexp.MustCompile(`<li>from\s*\n*([0-9a-z\.\-\s]+) before\s*\n*([0-9a-z\.\-\s]+)<\/li>`) // ungreedy
@@ -38,7 +39,7 @@ func opensslUpdate() error {
 	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	cves := strings.Split(string(body), "h4 id")
+	cves := strings.Split(string(body), "h3 id")
 	for id, cve := range cves {
 		if id == 0 {
 			//skip the first header summary
@@ -53,11 +54,16 @@ func opensslUpdate() error {
 		if len(match) > 0 {
 			s := match[0]
 			cveNumber = s[2]
-			link = s[1]
 		} else {
 			continue
 		}
 		if !strings.HasPrefix(cveNumber, "201") {
+			continue
+		}
+		match = cveRecordLinkRegexp.FindAllStringSubmatch(line, -1)
+		if len(match) > 0 {
+			link = strings.ReplaceAll(match[0][1], "\"", "")
+		} else {
 			continue
 		}
 
