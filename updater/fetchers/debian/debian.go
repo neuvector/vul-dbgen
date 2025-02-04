@@ -30,12 +30,16 @@ import (
 )
 
 const (
-	debianURL            = "https://security-tracker.debian.org/tracker/data/json"
-	debianURLPrefix      = "https://security-tracker.debian.org/tracker"
-	debianJsonFile       = "debian/debian.json"
-	debianBusterJsonFile = "debian/debian-buster.json"
-	maxRetryTimes        = 5
+	debianURL       = "https://security-tracker.debian.org/tracker/data/json"
+	debianURLPrefix = "https://security-tracker.debian.org/tracker"
+	debianJsonFile  = "debian/debian.json"
+	maxRetryTimes   = 5
 )
+
+var additionalDebianFiles = []string{
+	"debian/debian-stretch.json", //Partial dataset for debian 9, sourced via wayback machine snapshot of https://security-tracker.debian.org/tracker/data/json
+	"debian/debian-buster.json",  //Dataset for debian 10
+}
 
 type jsonData map[string]map[string]jsonVuln
 
@@ -98,35 +102,35 @@ func (fetcher *DebianFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 	if err != nil {
 		return resp, err
 	}
-
-	//Open buster json
-	busterJsonFile := fmt.Sprintf("%s%s", common.CVESourceRoot, debianBusterJsonFile)
-	if f, err := os.Open(busterJsonFile); err == nil {
-		log.Debug("Use local Debian buster database")
-
-		defer f.Close()
-		reader = bufio.NewReader(f)
-	} else {
-		log.WithFields(log.Fields{"error": err}).Error("Error opening debian-buster.json")
-	}
-	resp2, err := buildResponse(reader)
-	if err != nil {
-		return resp2, err
-	}
-
 	//Add response to map of full results
 	responseVulnMap := map[string]common.Vulnerability{}
 	for _, vuln := range resp.Vulnerabilities {
 		responseVulnMap[vuln.Name] = vuln
 	}
-	//Add buster response to map of full results
-	for _, vuln := range resp2.Vulnerabilities {
-		if val, ok := responseVulnMap[vuln.Name]; ok {
-			//If cve exists, combine both fixedIn lists
-			val.FixedIn = append(val.FixedIn, vuln.FixedIn...)
-			responseVulnMap[vuln.Name] = val
+
+	for _, file := range additionalDebianFiles {
+		//Open json
+		jsonFile := fmt.Sprintf("%s%s", common.CVESourceRoot, file)
+		if f, err := os.Open(jsonFile); err == nil {
+			log.WithFields(log.Fields{"file": file}).Debug("Using local Debian source")
+			defer f.Close()
+			reader = bufio.NewReader(f)
 		} else {
-			responseVulnMap[vuln.Name] = vuln
+			log.WithFields(log.Fields{"error": err, "file": file}).Error("Error opening file")
+		}
+		resp2, err := buildResponse(reader)
+		if err != nil {
+			return resp2, err
+		}
+		//Add response to map of full results
+		for _, vuln := range resp2.Vulnerabilities {
+			if val, ok := responseVulnMap[vuln.Name]; ok {
+				//If cve exists, combine both fixedIn lists
+				val.FixedIn = append(val.FixedIn, vuln.FixedIn...)
+				responseVulnMap[vuln.Name] = val
+			} else {
+				responseVulnMap[vuln.Name] = vuln
+			}
 		}
 	}
 
