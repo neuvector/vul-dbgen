@@ -19,6 +19,9 @@ var vulMap map[string]*common.AppModuleVul = make(map[string]*common.AppModuleVu
 var vulCache utils.Set = utils.NewSet()
 var cveCalibrate map[string][]common.AppModuleVersion = make(map[string][]common.AppModuleVersion)
 
+// Sometimes source doesn't remove withdrawn CVEs
+var withdrawnCVEs = map[string]struct{}{"CVE-2021-23334": {}}
+
 // This is a workaround to use import to control app db generation
 type AppFetcher struct{}
 
@@ -59,8 +62,12 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 	if err = manualUpdate(); err != nil {
 		return resp, err
 	}
-
-	for _, mv := range vulMap {
+	for key, mv := range vulMap {
+		//Manually remove some withdrawn CVE entries.
+		if _, ok := withdrawnCVEs[mv.VulName]; ok {
+			delete(vulMap, key)
+			continue
+		}
 		// Keep all CWE and GHSA vulnerabilities for now.
 		if !strings.HasPrefix(mv.VulName, "CWE-") && !strings.HasPrefix(mv.VulName, "GHSA-") {
 			if s := strings.Index(mv.VulName, "-"); s != -1 {
