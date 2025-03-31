@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -302,9 +303,10 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 
 		for _, cve := range cves {
 			common.DEBUG_VULN(v, "pre distro")
+			key := fmt.Sprintf("%s:%s", v.Namespace, cve.Name)
 
 			// Lookup meta map first, if entry exists, means the NVD has been searched
-			if meta, ok := cveMap[cve.Name]; ok {
+			if meta, ok := cveMap[key]; ok {
 				enrichDistroMeta(meta, v, &cve)
 			} else {
 				// lookup NVD and store the metadata
@@ -321,7 +323,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 					}
 				}
 
-				cveMap[cve.Name] = meta
+				cveMap[key] = meta
 			}
 		}
 	}
@@ -334,7 +336,6 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 
 		for _, cve := range cves {
 			common.DEBUG_VULN(app, "pre app")
-
 			// Lookup meta map first, if entry exists, means the NVD has been searched
 			if meta, ok := cveMap[cve]; ok {
 				enrichAppMeta(meta, app)
@@ -371,7 +372,8 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		cvss3 := v.CVSSv3
 		cvss2 := v.CVSSv2
 		for _, cve := range cves {
-			if meta, ok := cveMap[cve.Name]; ok {
+			key := fmt.Sprintf("%s:%s", v.Namespace, cve.Name)
+			if meta, ok := cveMap[key]; ok {
 				if v.IssuedDate.IsZero() {
 					v.IssuedDate = meta.PublishedDate
 				}
