@@ -267,9 +267,9 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 			}
 			if cve.Cve.PublishedDate != "" {
 				// Use new format, try old format if parse fails.
-				if t, err := time.Parse(timeFormatNew, cve.Cve.LastModifiedDate); err == nil {
+				if t, err := time.Parse(timeFormatNew, cve.Cve.PublishedDate); err == nil {
 					meta.PublishedDate = t
-				} else if t, err := time.Parse(timeFormat, cve.Cve.LastModifiedDate); err == nil {
+				} else if t, err := time.Parse(timeFormat, cve.Cve.PublishedDate); err == nil {
 					meta.PublishedDate = t
 				}
 			}
