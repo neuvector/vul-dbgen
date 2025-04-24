@@ -20,7 +20,7 @@ var vulCache utils.Set = utils.NewSet()
 var cveCalibrate map[string][]common.AppModuleVersion = make(map[string][]common.AppModuleVersion)
 
 // Sometimes source doesn't remove withdrawn CVEs
-var withdrawnCVEs = map[string]struct{}{"CVE-2021-23334": {}}
+var withdrawnCVEs = map[string]struct{}{"CVE-2021-23334": {}, "CVE-2024-4109": {}}
 
 // This is a workaround to use import to control app db generation
 type AppFetcher struct{}
