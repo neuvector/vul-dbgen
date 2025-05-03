@@ -22,7 +22,7 @@ var cveRecordLinkRegexp = regexp.MustCompile(`="(.*) target(.*)>CVE Record`)
 var fixedVerRegexp = regexp.MustCompile(`Fixed in OpenSSL\s*\n*([0-9a-z\.\-\s]+)`)
 var affectedVerRegexp = regexp.MustCompile(`\(Affected\s+([0-9a-z\.\-,\s]+)\s*\)`)
 var verRegexp = regexp.MustCompile(`<li>from\s*\n*([0-9a-z\.\-\s]+) before\s*\n*([0-9a-z\.\-\s]+)<\/li>`) // ungreedy
-var severityRegexp = regexp.MustCompile(`<dt>Severity<\/dt>[\S+\n\r\s]+<dd>([a-zA-Z]+)<\/dd>`)
+var severityRegexp = regexp.MustCompile(`<dt[^>]*>\s*Severity\s*</dt>\s*<dd[^>]*>\s*([A-Za-z]+)\s*</dd>`)
 var descriptionRegexp = regexp.MustCompile(`<p>([a-zA-Z[\S+\n\r\s]+)<\/p>`)
 
 // FetchUpdate gets vulnerability updates from the openssl.
@@ -57,9 +57,9 @@ func opensslUpdate() error {
 		} else {
 			continue
 		}
-		if !strings.HasPrefix(cveNumber, "201") {
-			continue
-		}
+		// if !strings.HasPrefix(cveNumber, "201") {
+		// 	continue
+		// }
 		match = cveRecordLinkRegexp.FindAllStringSubmatch(line, -1)
 		if len(match) > 0 {
 			link = strings.ReplaceAll(match[0][1], "\"", "")
