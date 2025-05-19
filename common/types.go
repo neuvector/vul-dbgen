@@ -186,6 +186,10 @@ var UbuntuReleasesMapping = map[string]string{
 	"lunar":            "23.04",
 	"mantic":           "23.10",
 	"noble":            "24.04",
+	"esm-apps/bionic":  "18.04",
+	"esm-apps/focal":   "20.04",
+	"esm-apps/jammy":   "22.04",
+	"esm-apps/noble":   "24.04",
 }
 
 var DebianReleasesMapping = map[string]string{
