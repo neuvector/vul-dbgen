@@ -38,6 +38,15 @@ var (
 		ovalInfo{"suse/suse.liberty.linux.7.xml.gz", "SUSE Liberty Linux 7", "sles:lib"},
 		ovalInfo{"suse/suse.liberty.linux.8.xml.gz", "SUSE Liberty Linux 8", "sles:lib"},
 		ovalInfo{"suse/suse.liberty.linux.9.xml.gz", "SUSE Liberty Linux 9", "sles:lib"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.xml.gz", "SUSE Linux Enterprise Micro 5", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.0.xml.gz", "SUSE Linux Enterprise Micro 5.0", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.1.xml.gz", "SUSE Linux Enterprise Micro 5.1", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.2.xml.gz", "SUSE Linux Enterprise Micro 5.2", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.3.xml.gz", "SUSE Linux Enterprise Micro 5.3", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.4.xml.gz", "SUSE Linux Enterprise Micro 5.4", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.5.5.xml.gz", "SUSE Linux Enterprise Micro 5.5", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.6.0.xml.gz", "SUSE Linux Enterprise Micro 6.0", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.6.1.xml.gz", "SUSE Linux Enterprise Micro 6.1", "sles:micro"},
 	}
 
 	noVersion = map[string]struct{}{
