@@ -45,8 +45,8 @@ var (
 		ovalInfo{"suse/suse.linux.enterprise.micro.5.3.xml.gz", "SUSE Linux Enterprise Micro 5.3", "sles:micro"},
 		ovalInfo{"suse/suse.linux.enterprise.micro.5.4.xml.gz", "SUSE Linux Enterprise Micro 5.4", "sles:micro"},
 		ovalInfo{"suse/suse.linux.enterprise.micro.5.5.xml.gz", "SUSE Linux Enterprise Micro 5.5", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.6.0.xml.gz", "SUSE Linux Enterprise Micro 6.0", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.6.1.xml.gz", "SUSE Linux Enterprise Micro 6.1", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.6.0.xml.gz", "SUSE Linux Micro 6.0", "sles:micro"},
+		ovalInfo{"suse/suse.linux.enterprise.micro.6.1.xml.gz", "SUSE Linux Micro 6.1", "sles:micro"},
 	}
 
 	noVersion = map[string]struct{}{
