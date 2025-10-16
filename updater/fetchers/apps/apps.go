@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -41,6 +41,9 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 	// if err = cvedetailUpdate(); err != nil {
 	// 	return resp, err
 	// }
+	if err = govulnUpdate(); err != nil {
+		return resp, err
+	}
 	if err = ghsaUpdate(); err != nil {
 		return resp, err
 	}
@@ -89,7 +92,7 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 }
 
 func cveCalibrationLoad() {
-	dat, err := ioutil.ReadFile("apps_calibration")
+	dat, err := os.ReadFile("apps_calibration")
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Info("open apps_calibration fail")
 		return
