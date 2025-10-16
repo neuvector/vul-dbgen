@@ -79,6 +79,7 @@ var (
 // the Ubuntu CVE Tracker.
 type UbuntuFetcher struct {
 	repositoryLocalPath string
+	CvesIncludeGoVuln   utils.Set
 }
 
 func init() {
@@ -139,7 +140,7 @@ func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 		// Add the vulnerability to the response.
 		upstreamCalibration(&v)
-		if len(v.FixedIn) > 0 {
+		if len(v.FixedIn) > 0 || fetcher.CvesIncludeGoVuln.Contains(v.Name) {
 			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 		}
 
