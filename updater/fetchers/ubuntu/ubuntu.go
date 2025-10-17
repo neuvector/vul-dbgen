@@ -83,7 +83,9 @@ type UbuntuFetcher struct {
 }
 
 func init() {
-	updater.RegisterFetcher("ubuntu", &UbuntuFetcher{})
+	updater.RegisterFetcher("ubuntu", &UbuntuFetcher{
+		CvesIncludeGoVuln: utils.NewSet(),
+	})
 }
 
 // FetchUpdate gets vulnerability updates from the Ubuntu CVE Tracker.
