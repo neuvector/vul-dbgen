@@ -214,6 +214,14 @@ func calibrateAndMerge(goVulnMap map[string]*common.AppModuleVul, ubuntuVulnerab
 		return
 	}
 
+	whileListGoVuls := utils.NewSetFromSlice([]interface{}{
+		"GO-2022-0635",
+		"GO-2022-0646",
+		"GO-2025-3918",
+		"GO-2025-3917",
+		"GO-2025-3919",
+	})
+
 	for cve, appVul := range goVulnMap {
 		if ubuntuVulnerability, ok := ubuntuVulnerabilityMap[cve]; ok {
 			appVul.VulName = ubuntuVulnerability.Name
@@ -223,6 +231,10 @@ func calibrateAndMerge(goVulnMap map[string]*common.AppModuleVul, ubuntuVulnerab
 			appVul.ScoreV3 = ubuntuVulnerability.CVSSv3.Score
 			appVul.VectorsV3 = ubuntuVulnerability.CVSSv3.Vectors
 			appVul.Link = ubuntuVulnerability.Link
+		}
+
+		if whileListGoVuls.Contains(appVul.VulName) {
+			continue
 		}
 		addAppVulMap(appVul)
 	}
