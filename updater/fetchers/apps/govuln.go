@@ -2,6 +2,7 @@ package apps
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,9 +14,48 @@ import (
 	utils "github.com/vul-dbgen/share"
 	"github.com/vul-dbgen/updater/fetchers/ubuntu"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
-const goVulnDBPath = "apps/golang-osv.zip"
+const (
+	goVulnDBPath = "apps/golang-osv.zip"
+)
+
+// parseEcosystemSpecificCustomRanges parses custom_ranges from ecosystem_specific struct
+func parseEcosystemSpecificCustomRanges(ecosystemSpecific *structpb.Struct) ([]*osvschema.Range, error) {
+	if ecosystemSpecific == nil {
+		return nil, nil
+	}
+
+	customRangesValue, ok := ecosystemSpecific.Fields["custom_ranges"]
+	if !ok || customRangesValue == nil {
+		return nil, nil
+	}
+
+	listValue := customRangesValue.GetListValue()
+	if listValue == nil {
+		return nil, nil
+	}
+
+	var ranges []*osvschema.Range
+	for _, item := range listValue.Values {
+		jsonBytes, err := json.Marshal(item)
+		if err != nil {
+			log.Warnf("Failed to marshal custom_range item: %v", err)
+			continue
+		}
+
+		var r osvschema.Range
+		if err := protojson.Unmarshal(jsonBytes, &r); err != nil {
+			log.Warnf("Failed to unmarshal custom_range item: %v, json: %s", err, string(jsonBytes))
+			continue
+		}
+
+		ranges = append(ranges, &r)
+	}
+
+	return ranges, nil
+}
 
 func loadZipFile(zipFile *zip.File) (*osvschema.Vulnerability, error) {
 	file, err := zipFile.Open()
@@ -69,6 +109,77 @@ func getSeverityLevel(score float64) common.Priority {
 		return common.Medium
 	}
 	return common.Low
+}
+
+func parseAffectedRanges(affected *osvschema.Affected, appVul *common.AppModuleVul) {
+	// Check if custom_ranges exist first
+	var customRanges []*osvschema.Range
+	var hasCustomRanges bool
+	if affected.EcosystemSpecific != nil {
+		customRanges, _ = parseEcosystemSpecificCustomRanges(affected.EcosystemSpecific)
+		hasCustomRanges = len(customRanges) > 0
+	}
+
+	// Parse ecosystem_specific.custom_ranges (ECOSYSTEM)
+	for _, r := range customRanges {
+		if r.Type != osvschema.Range_ECOSYSTEM {
+			continue
+		}
+
+		for _, event := range r.Events {
+			if event.Introduced != "" {
+				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+					OpCode:  "gteq",
+					Version: event.Introduced,
+				})
+			}
+
+			if event.Fixed != "" {
+				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
+					OpCode:  "lt",
+					Version: event.Fixed,
+				})
+			}
+		}
+	}
+
+	// Parse version ranges (SEMVER)
+	for _, r := range affected.Ranges {
+		if r.Type != osvschema.Range_SEMVER {
+			continue
+		}
+
+		var skipZeroRange = false
+		for i, event := range r.Events {
+			if event.Introduced == "0" {
+				if i+1 >= len(r.Events) || r.Events[i+1].Introduced != "" {
+					skipZeroRange = true
+					break
+				}
+			}
+		}
+
+		for _, event := range r.Events {
+			if event.Introduced != "" {
+				// Skip the starting from zero with no limit range cases
+				if event.Introduced == "0" && skipZeroRange && hasCustomRanges {
+					skipZeroRange = false
+					continue
+				}
+				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+					OpCode:  "gteq",
+					Version: event.Introduced,
+				})
+			}
+
+			if event.Fixed != "" {
+				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
+					OpCode:  "lt",
+					Version: event.Fixed,
+				})
+			}
+		}
+	}
 }
 
 // convertGoOSVToAppModuleVul converts a Go OSV vulnerability to an AppModuleVul
@@ -125,28 +236,8 @@ func convertGoOSVToAppModuleVul(vulnerability *osvschema.Vulnerability) ([]*comm
 			}
 		}
 
-		// Parse version ranges (SEMVER)
-		for _, r := range affected.Ranges {
-			if r.Type != osvschema.Range_SEMVER {
-				continue
-			}
+		parseAffectedRanges(affected, appVul)
 
-			for _, event := range r.Events {
-				if event.Introduced != "" {
-					appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
-						OpCode:  "gteq",
-						Version: event.Introduced,
-					})
-				}
-
-				if event.Fixed != "" {
-					appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
-						OpCode:  "lt",
-						Version: event.Fixed,
-					})
-				}
-			}
-		}
 		appVuls = append(appVuls, appVul)
 	}
 	return appVuls, cvesIncludeGoVuln
