@@ -111,13 +111,34 @@ func getSeverityLevel(score float64) common.Priority {
 	return common.Low
 }
 
+// parseAffectedRanges
+// parseAffectedRanges converts OSV affected ranges into a flat list of version constraints.
+// The input ranges may contain multiple affected versions and gaps (unfixed ranges),
+// which are converted into a series of "introduced" and "fixed" boundaries.
+//
+// The input ranges assume that the affected ranges are not overlapping, and the ranges are sorted by the introduced version.
+//
+// The output format uses OpCodes to represent logical operators:
+//   - "gteq": >= (first affected version)
+//   - "orgteq": >= with OR (new affected range after a gap)
+//   - "andlt": < (upper bound of current range)
+//
+// Example transformations:
+//
+//	Input:  introduced 5.2.0, introduced 5.3.0, fixed 5.3.5
+//	Output: [gteq(5.2.0), andlt(5.3.0), orgteq(5.3.0), andlt(5.3.5)]
+//	Meaning: (>=5.2.0 AND <5.3.0) OR (>=5.3.0 AND <5.3.5)
+//
+//	Input:  introduced 0, introduced 5.2.0, fixed 5.3.5
+//	Output: [gteq(0), andlt(5.2.0), orgteq(5.2.0), andlt(5.3.5)]
+//	Meaning: (>=0 AND <5.2.0) OR (>=5.2.0 AND <5.3.5)
 func parseAffectedRanges(affected *osvschema.Affected, appVul *common.AppModuleVul) {
 	// Check if custom_ranges exist first
 	var customRanges []*osvschema.Range
-	var hasCustomRanges bool
+	// var hasCustomRanges bool
 	if affected.EcosystemSpecific != nil {
 		customRanges, _ = parseEcosystemSpecificCustomRanges(affected.EcosystemSpecific)
-		hasCustomRanges = len(customRanges) > 0
+		// hasCustomRanges = len(customRanges) > 0
 	}
 
 	// Parse ecosystem_specific.custom_ranges (ECOSYSTEM)
@@ -126,55 +147,80 @@ func parseAffectedRanges(affected *osvschema.Affected, appVul *common.AppModuleV
 			continue
 		}
 
-		for _, event := range r.Events {
+		for i, event := range r.Events {
+			introduceOpCode := "gteq"
+			if len(appVul.AffectedVer) > 0 {
+				introduceOpCode = "orgteq" // OR with previous range
+			}
+
+			// Example: if input is affected 5.2.0, affected 5.3.0, fixed 5.3.5,
+			// then for each affected version (e.g., 5.2.0, 5.3.0), we should add an "andlt" condition
+			// result: [gteq(5.2.0), andlt(5.3.0), orgteq(5.3.0), andlt(5.3.5)]
 			if event.Introduced != "" {
 				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
-					OpCode:  "gteq",
+					OpCode:  introduceOpCode,
 					Version: event.Introduced,
 				})
+				if i+1 < len(r.Events) && r.Events[i+1].Introduced != "" {
+					appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+						OpCode:  "andlt",
+						Version: r.Events[i+1].Introduced,
+					})
+				}
 			}
 
 			if event.Fixed != "" {
-				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
-					OpCode:  "lt",
+				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+					OpCode:  "andlt",
 					Version: event.Fixed,
 				})
 			}
 		}
 	}
 
-	// Parse version ranges (SEMVER)
+	introduceOpCode := "gteq"
+	if len(appVul.AffectedVer) > 0 {
+		introduceOpCode = "orgteq" // OR with previous range
+	}
+
 	for _, r := range affected.Ranges {
 		if r.Type != osvschema.Range_SEMVER {
 			continue
 		}
 
-		var skipZeroRange = false
 		for i, event := range r.Events {
-			if event.Introduced == "0" {
-				if i+1 >= len(r.Events) || r.Events[i+1].Introduced != "" {
-					skipZeroRange = true
-					break
-				}
-			}
-		}
-
-		for _, event := range r.Events {
 			if event.Introduced != "" {
-				// Skip the starting from zero with no limit range cases
-				if event.Introduced == "0" && skipZeroRange && hasCustomRanges {
-					skipZeroRange = false
-					continue
-				}
 				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
-					OpCode:  "gteq",
+					OpCode:  introduceOpCode,
 					Version: event.Introduced,
 				})
+				if i+1 < len(r.Events) {
+					if r.Events[i+1].Introduced != "" {
+						// Example: if input is affected 5.2.0, affected 5.3.0, fixed 5.3.5,
+						// then for each affected version (e.g., 5.2.0, 5.3.0), we should add an "andlt" condition
+						// result: [gteq(5.2.0), andlt(5.3.0), orgteq(5.3.0), andlt(5.3.5)]
+						appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+							OpCode:  "andlt",
+							Version: r.Events[i+1].Introduced,
+						})
+					}
+				} else if event.Introduced == "0" {
+					// Ensure the 0 has the proper boundary condition
+					// Example only one 0, should be [gteq(0)]
+					// Example: if input is affected 5.2.0, affected 5.3.0, fixed 5.3.5, 0,
+					// then output should be [gteq(5.2.0), andlt(5.3.0), orgteq(5.3.0), andlt(5.3.5), orgteq(0), andlt(5.2.0)]
+					if len(appVul.AffectedVer) > 1 {
+						appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+							OpCode:  "andlt",
+							Version: appVul.AffectedVer[0].Version,
+						})
+					}
+				}
 			}
 
 			if event.Fixed != "" {
-				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
-					OpCode:  "lt",
+				appVul.AffectedVer = append(appVul.AffectedVer, common.AppModuleVersion{
+					OpCode:  "andlt",
 					Version: event.Fixed,
 				})
 			}

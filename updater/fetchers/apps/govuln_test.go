@@ -9,32 +9,84 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+func mustCreateEcosystemSpecific(t *testing.T, data map[string]interface{}) *structpb.Struct {
+	t.Helper()
+	s, err := structpb.NewStruct(data)
+	if err != nil {
+		t.Fatalf("Failed to create ecosystem_specific: %v", err)
+	}
+	return s
+}
+
 func TestParseAffectedRanges(t *testing.T) {
-	ecosystemSpecific, err := structpb.NewStruct(map[string]interface{}{
+	ecosystemSpecificWithMissingFix := mustCreateEcosystemSpecific(t, map[string]interface{}{
 		"custom_ranges": []interface{}{
 			map[string]interface{}{
 				"type": "ECOSYSTEM",
 				"events": []interface{}{
 					map[string]interface{}{"introduced": "0.0.0-20230727023453-1c4957d53911"},
 					map[string]interface{}{"fixed": "0.0.0-20251020133207-084a437033b4"},
+					map[string]interface{}{"introduced": "5.2.0"},
 					map[string]interface{}{"introduced": "5.3.0"},
 					map[string]interface{}{"fixed": "5.3.5"},
 				},
 			},
 		},
 	})
-	if err != nil {
-		t.Fatalf("Failed to create ecosystem_specific: %v", err)
-	}
+
+	ecosystemSpecific := mustCreateEcosystemSpecific(t, map[string]interface{}{
+		"custom_ranges": []interface{}{
+			map[string]interface{}{
+				"type": "ECOSYSTEM",
+				"events": []interface{}{
+					map[string]interface{}{"introduced": "5.2.0"},
+					map[string]interface{}{"fixed": "5.3.0"},
+					map[string]interface{}{"introduced": "5.3.0"},
+					map[string]interface{}{"fixed": "5.3.4"},
+					map[string]interface{}{"introduced": "5.4.0"},
+					map[string]interface{}{"fixed": "5.4.7"},
+				},
+			},
+		},
+	})
 
 	testCases := []struct {
 		name             string
 		vuln             *osvschema.Vulnerability
 		expectedAffected []struct{ version, opCode string }
-		expectedFixed    []struct{ version, opCode string }
 	}{
 		{
-			name: "No custom ranges: only semver events",
+			name: "SemverOnly_ZeroIntroduced_NoCustomRanges",
+			vuln: &osvschema.Vulnerability{
+				Id:        "GO-2025-0002",
+				Details:   "Test vulnerability without custom ranges",
+				Summary:   "Test summary",
+				Published: timestamppb.Now(),
+				Modified:  timestamppb.Now(),
+				Affected: []*osvschema.Affected{
+					{
+						Package: &osvschema.Package{
+							Name:      "github.com/example/package",
+							Ecosystem: "Go",
+						},
+						Ranges: []*osvschema.Range{
+							{
+								Type: osvschema.Range_SEMVER,
+								Events: []*osvschema.Event{
+									{Introduced: "0"},
+								},
+							},
+						},
+						EcosystemSpecific: nil,
+					},
+				},
+			},
+			expectedAffected: []struct{ version, opCode string }{
+				{version: "0", opCode: "gteq"},
+			},
+		},
+		{
+			name: "SemverEvents_IntroducedAndFixed_NoCustomRanges",
 			vuln: &osvschema.Vulnerability{
 				Id:        "GO-2025-0002",
 				Details:   "Test vulnerability without custom ranges",
@@ -62,13 +114,11 @@ func TestParseAffectedRanges(t *testing.T) {
 			},
 			expectedAffected: []struct{ version, opCode string }{
 				{version: "1.0.0", opCode: "gteq"},
-			},
-			expectedFixed: []struct{ version, opCode string }{
-				{version: "1.2.3", opCode: "lt"},
+				{version: "1.2.3", opCode: "andlt"},
 			},
 		},
 		{
-			name: "0 introduced and no fixed version behind, should be ignored",
+			name: "CustomRanges_OverrideZeroIntroduced_SingleAffected",
 			vuln: &osvschema.Vulnerability{
 				Id:        "GO-2025-0001",
 				Details:   "Test vulnerability",
@@ -89,21 +139,23 @@ func TestParseAffectedRanges(t *testing.T) {
 								},
 							},
 						},
-						EcosystemSpecific: ecosystemSpecific,
+						EcosystemSpecific: ecosystemSpecificWithMissingFix,
 					},
 				},
 			},
 			expectedAffected: []struct{ version, opCode string }{
 				{version: "0.0.0-20230727023453-1c4957d53911", opCode: "gteq"},
-				{version: "5.3.0", opCode: "gteq"},
-			},
-			expectedFixed: []struct{ version, opCode string }{
-				{version: "0.0.0-20251020133207-084a437033b4", opCode: "lt"},
-				{version: "5.3.5", opCode: "lt"},
+				{version: "0.0.0-20251020133207-084a437033b4", opCode: "andlt"},
+				{version: "5.2.0", opCode: "orgteq"},
+				{version: "5.3.0", opCode: "andlt"},
+				{version: "5.3.0", opCode: "orgteq"},
+				{version: "5.3.5", opCode: "andlt"},
+				{version: "0", opCode: "orgteq"},
+				{version: "0.0.0-20230727023453-1c4957d53911", opCode: "andlt"},
 			},
 		},
 		{
-			name: "0 introduced and no fixed version behind",
+			name: "CustomAndSemverRanges_ZeroIntroducedWithExtraSemver",
 			vuln: &osvschema.Vulnerability{
 				Id:        "GO-2025-0002",
 				Details:   "Test vulnerability without custom ranges",
@@ -126,19 +178,59 @@ func TestParseAffectedRanges(t *testing.T) {
 								},
 							},
 						},
-						EcosystemSpecific: ecosystemSpecific,
+						EcosystemSpecific: ecosystemSpecificWithMissingFix,
 					},
 				},
 			},
 			expectedAffected: []struct{ version, opCode string }{
 				{version: "0.0.0-20230727023453-1c4957d53911", opCode: "gteq"},
-				{version: "5.3.0", opCode: "gteq"},
-				{version: "1.0.0", opCode: "gteq"},
+				{version: "0.0.0-20251020133207-084a437033b4", opCode: "andlt"},
+				{version: "5.2.0", opCode: "orgteq"},
+				{version: "5.3.0", opCode: "andlt"},
+				{version: "5.3.0", opCode: "orgteq"},
+				{version: "5.3.5", opCode: "andlt"},
+				{version: "0", opCode: "orgteq"},
+				{version: "1.0.0", opCode: "andlt"},
+				{version: "1.0.0", opCode: "orgteq"},
+				{version: "1.2.3", opCode: "andlt"},
 			},
-			expectedFixed: []struct{ version, opCode string }{
-				{version: "0.0.0-20251020133207-084a437033b4", opCode: "lt"},
-				{version: "5.3.5", opCode: "lt"},
-				{version: "1.2.3", opCode: "lt"},
+		},
+		{
+			name: "CustomRanges_MultipleOrGroups",
+			vuln: &osvschema.Vulnerability{
+				Id:        "GO-2025-0003",
+				Details:   "Test multiple ranges",
+				Summary:   "Test summary",
+				Published: timestamppb.Now(),
+				Modified:  timestamppb.Now(),
+				Affected: []*osvschema.Affected{
+					{
+						Package: &osvschema.Package{
+							Name:      "github.com/example/package",
+							Ecosystem: "Go",
+						},
+						Ranges: []*osvschema.Range{
+							{
+								Type: osvschema.Range_SEMVER,
+								Events: []*osvschema.Event{
+									{Introduced: "0"},
+								},
+							},
+						},
+						EcosystemSpecific: ecosystemSpecific,
+					},
+				},
+			},
+			// Expected: (>=5.2.0 AND <5.3.0) OR (>=5.3.0 AND <5.3.4) OR (>=5.4.0 AND <5.4.7)
+			expectedAffected: []struct{ version, opCode string }{
+				{version: "5.2.0", opCode: "gteq"},
+				{version: "5.3.0", opCode: "andlt"},
+				{version: "5.3.0", opCode: "orgteq"},
+				{version: "5.3.4", opCode: "andlt"},
+				{version: "5.4.0", opCode: "orgteq"},
+				{version: "5.4.7", opCode: "andlt"},
+				{version: "0", opCode: "orgteq"},
+				{version: "5.2.0", opCode: "andlt"},
 			},
 		},
 	}
@@ -155,15 +247,6 @@ func TestParseAffectedRanges(t *testing.T) {
 					"AffectedVer[%d] version mismatch", i)
 				require.Equal(t, expected.opCode, appVul.AffectedVer[i].OpCode,
 					"AffectedVer[%d] opCode mismatch", i)
-			}
-
-			require.Equal(t, len(tc.expectedFixed), len(appVul.FixedVer),
-				"Expected %d FixedVer, got %d", len(tc.expectedFixed), len(appVul.FixedVer))
-			for i, expected := range tc.expectedFixed {
-				require.Equal(t, expected.version, appVul.FixedVer[i].Version,
-					"FixedVer[%d] version mismatch", i)
-				require.Equal(t, expected.opCode, appVul.FixedVer[i].OpCode,
-					"FixedVer[%d] opCode mismatch", i)
 			}
 		})
 	}
