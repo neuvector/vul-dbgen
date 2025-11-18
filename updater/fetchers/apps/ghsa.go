@@ -24,6 +24,8 @@ const (
 	phpDataFile    = "github/php.data.gz"
 )
 
+var jreRegex = regexp.MustCompile(`\.jre\d+`)
+
 type ghsaData struct {
 	ID      string `json:"id"`
 	Package struct {
@@ -70,6 +72,10 @@ func ghsaUpdate() error {
 	loadGHSAData(golangDataFile, "golang", "go:", false)
 	loadGHSAData(phpDataFile, "php", "php:", true)
 	return nil
+}
+
+func cleanupVersion(version string) string {
+	return jreRegex.ReplaceAllString(version, "")
 }
 
 func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
@@ -125,7 +131,7 @@ func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 			moduleName = strings.ToLower(moduleName)
 		}
 		affectedVer := getVersion(r.AffectedVersion)
-		fixedVer := getVersion(r.PatchedVersion.Identifier)
+		fixedVer := getVersion(cleanupVersion(r.PatchedVersion.Identifier))
 		key := fmt.Sprintf("%s-%s", vulName, moduleName)
 
 		if v, ok := vmap[key]; !ok {
