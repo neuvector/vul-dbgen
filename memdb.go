@@ -144,6 +144,8 @@ const (
 	dbSuse
 	dbPhoton
 	dbRocky
+	dbWolfi
+	dbChainguard
 	dbMax
 )
 
@@ -181,6 +183,8 @@ func (db *memDB) UpdateDb(version string) bool {
 	dbs.buffers[dbSuse] = dbBuffer{namespace: "sles", indexFile: "suse_index.tb", fullFile: "suse_full.tb"}
 	dbs.buffers[dbPhoton] = dbBuffer{namespace: "photon", indexFile: "photon_index.tb", fullFile: "photon_full.tb"}
 	dbs.buffers[dbRocky] = dbBuffer{namespace: "rocky", indexFile: "rocky_index.tb", fullFile: "rocky_full.tb"}
+	dbs.buffers[dbWolfi] = dbBuffer{namespace: "wolfi", indexFile: "wolfi_index.tb", fullFile: "wolfi_full.tb"}
+	dbs.buffers[dbChainguard] = dbBuffer{namespace: "chainguard", indexFile: "chainguard_index.tb", fullFile: "chainguard_full.tb"}
 
 	dbs.rawSHA = make([][sha256.Size]byte, len(db.rawFiles))
 

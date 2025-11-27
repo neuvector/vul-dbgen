@@ -10,6 +10,7 @@ Generate NeuVector vulnerability database
 | **OS based** |
 | Alpine | https://secdb.alpinelinux.org/ |
 | Amazon | https://alas.aws.amazon.com/ |
+| Chainguard | https://packages.cgr.dev/chainguard/security.json |
 | Debian | https://security-tracker.debian.org/tracker/data/json |
 | Microsoft mariner | https://github.com/microsoft/CBL-MarinerVulnerabilityData |
 | Oracle OS | https://linux.oracle.com/oval/ |
@@ -18,6 +19,7 @@ Generate NeuVector vulnerability database
 | Red Hat/CentOS | https://www.redhat.com/security/data/oval/v2/ |
 | SUSE Linux | https://ftp.suse.com/pub/projects/security/oval/ |
 | Ubuntu | https://launchpad.net/ubuntu-cve-tracker |
+| Wolfi | https://packages.wolfi.dev/os/security.json |
 | **Application based** |
 | .NET | https://github.com/advisories, https://www.cvedetails.com/vulnerability-list/vendor_id-26/ |
 | apache | https://www.cvedetails.com/vendor/45/Apache.html |
