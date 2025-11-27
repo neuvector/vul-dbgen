@@ -16,6 +16,7 @@ func TestExtractVersionModuleFromNevra(t *testing.T) {
 		{nevra: "kernel-0:6.12.0-124.8.1.el10_1.aarch64.rpm", moduleName: "kernel", moduleVersion: "6.12.0-124.8.1.el10_1"},
 		{nevra: "kernel-64k-debug-core-0:6.12.0-124.8.1.el10_1.aarch64.rpm", moduleName: "kernel-64k-debug-core", moduleVersion: "6.12.0-124.8.1.el10_1"},
 		{nevra: "kernel-abi-stablelists-0:6.12.0-124.8.1.el10_1.noarch.rpm", moduleName: "kernel-abi-stablelists", moduleVersion: "6.12.0-124.8.1.el10_1"},
+		{nevra: "passt-0:0^20240806.gee36266-6.el9_5.aarch64.rpm", moduleName: "passt", moduleVersion: "0.20240806.gee36266-6.el9_5"},
 	}
 	for _, test := range tests {
 		moduleName, moduleVersion := extractVersionModuleFromNevra(test.nevra)
