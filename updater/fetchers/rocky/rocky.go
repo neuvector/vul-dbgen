@@ -132,18 +132,25 @@ func productNameToNamespace(productName string) string {
 // NEVRA format: name-[epoch:]version-release.arch.rpm
 // Example with epoch:
 //
-//	"valkey-0:8.0.6-2.el10_1.ppc64le.rpm" -> "8.0.6-2.el10_1"
-func extractVersionFromNevra(nvraString string) string {
-	lastPeriod := strings.LastIndex(nvraString, ".")
-	nvraString = nvraString[:lastPeriod]
-	lastPeriod = strings.LastIndex(nvraString, ".")
-	nvraString = nvraString[:lastPeriod]
-	//Get module name from section before epoch
-	epochIndex := strings.Index(nvraString, ":")
+//	"valkey-0:8.0.6-2.el10_1.ppc64le.rpm" -> "valkey", "8.0.6-2.el10_1"
+func extractVersionModuleFromNevra(nevra string) (string, string) {
 
-	//Remaining section is version
-	moduleVersion := nvraString[epochIndex-1:]
-	return moduleVersion
+	nevra = strings.TrimSuffix(nevra, ".rpm")
+
+	if lastPeriod := strings.LastIndex(nevra, "."); lastPeriod > 0 {
+		nevra = nevra[:lastPeriod]
+	}
+
+	nevraInfo := strings.Split(nevra, ":")
+	if len(nevraInfo) != 2 {
+		return "", ""
+	}
+	moduleName := nevraInfo[0]
+	if lastPeriod := strings.LastIndex(moduleName, "-"); lastPeriod > 0 {
+		moduleName = moduleName[:lastPeriod]
+	}
+	moduleVersion := nevraInfo[1]
+	return moduleName, moduleVersion
 }
 
 // buildFixedInByNamespace organizes fixed package versions by Rocky Linux product namespace.
@@ -174,7 +181,7 @@ func buildFixedInByNamespace(affectedProducts []affectedProduct, packages []pkg)
 			groupPakcage = packagesByNamespace[affectedProductNamespace]
 		}
 
-		pkgVersion := extractVersionFromNevra(pkg.Nevra)
+		pkgName, pkgVersion := extractVersionModuleFromNevra(pkg.Nevra)
 		if _, existing := groupPakcage[pkgVersion]; !existing {
 			fvVer, err := common.NewVersion(pkgVersion)
 			if err != nil {
@@ -183,7 +190,7 @@ func buildFixedInByNamespace(affectedProducts []affectedProduct, packages []pkg)
 
 			groupPakcage[pkgVersion] = common.FeatureVersion{
 				Feature: common.Feature{
-					Name:      pkg.PackageName,
+					Name:      pkgName,
 					Namespace: affectedProductNamespace,
 				},
 				Version: fvVer,
