@@ -241,22 +241,19 @@ func issuedDate(dateString string) time.Time {
 }
 
 func translateSeverity(incSev string) common.Priority {
-	var severity common.Priority
 	switch incSev {
-	case "SEVERITY_CRITICAL":
-		severity = common.Critical
-	case "SEVERITY_IMPORTANT":
-		severity = common.High
-	case "SEVERITY_MODERATE":
-		severity = common.Medium
-	case "SEVERITY_LOW":
-		severity = common.Low
-	case "SEVERITY_UNKNOWN":
-		severity = common.Low
+	case "Critical":
+		return common.Critical
+	case "Important":
+		return common.High
+	case "Moderate":
+		return common.Medium
+	case "Low", "None", "Unknown":
+		return common.Low
 	default:
-		log.WithFields(log.Fields{"sev": incSev}).Debug("unhandled severity")
+		log.WithFields(log.Fields{"severity": incSev}).Warn("unhandled severity, defaulting to Low")
+		return common.Low
 	}
-	return severity
 }
 
 func (f *RockyFetcher) Clean() {}
