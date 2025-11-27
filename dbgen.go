@@ -17,6 +17,7 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/alpine"
 	_ "github.com/vul-dbgen/updater/fetchers/amazon"
 	_ "github.com/vul-dbgen/updater/fetchers/apps"
+	_ "github.com/vul-dbgen/updater/fetchers/chainguard"
 	_ "github.com/vul-dbgen/updater/fetchers/debian"
 	_ "github.com/vul-dbgen/updater/fetchers/mariner"
 	_ "github.com/vul-dbgen/updater/fetchers/oracle"
@@ -25,6 +26,7 @@ import (
 	_ "github.com/vul-dbgen/updater/fetchers/rocky"
 	_ "github.com/vul-dbgen/updater/fetchers/suse"
 	_ "github.com/vul-dbgen/updater/fetchers/ubuntu"
+	_ "github.com/vul-dbgen/updater/fetchers/wolfi"
 )
 
 func usage() {
