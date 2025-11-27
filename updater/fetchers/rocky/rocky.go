@@ -145,11 +145,19 @@ func extractVersionModuleFromNevra(nevra string) (string, string) {
 	if len(nevraInfo) != 2 {
 		return "", ""
 	}
+
+	// Strip trailing "-<epoch>" from namePart (the "0" before ':')
 	moduleName := nevraInfo[0]
 	if lastPeriod := strings.LastIndex(moduleName, "-"); lastPeriod > 0 {
 		moduleName = moduleName[:lastPeriod]
 	}
+
 	moduleVersion := nevraInfo[1]
+	if strings.Contains(moduleVersion, "^") {
+		// "0^20240806.gee36266-6.el9_5" -> "0.20240806.gee36266-6.el9_5"
+		moduleVersion = strings.ReplaceAll(moduleVersion, "^", ".")
+	}
+
 	return moduleName, moduleVersion
 }
 
@@ -185,7 +193,7 @@ func buildFixedInByNamespace(affectedProducts []affectedProduct, packages []pkg)
 		if _, existing := groupPakcage[pkgVersion]; !existing {
 			fvVer, err := common.NewVersion(pkgVersion)
 			if err != nil {
-				log.WithFields(log.Fields{"err": err, "version": pkgVersion, "ftVer": fvVer}).Debug("Error converting version to FeatureVersion")
+				log.WithFields(log.Fields{"pkg.Nevra": pkg.Nevra, "version": pkgVersion, "pkgName": pkgName, "err": err}).Error("Error converting version to FeatureVersion")
 			}
 
 			groupPakcage[pkgVersion] = common.FeatureVersion{
