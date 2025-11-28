@@ -175,7 +175,7 @@ func parseAffectedRanges(affected *osvschema.Affected, appVul *common.AppModuleV
 					Version: event.Fixed,
 				})
 				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
-					OpCode:  "andlt",
+					OpCode:  "gteq",
 					Version: event.Fixed,
 				})
 			}
@@ -228,7 +228,7 @@ func parseAffectedRanges(affected *osvschema.Affected, appVul *common.AppModuleV
 					Version: event.Fixed,
 				})
 				appVul.FixedVer = append(appVul.FixedVer, common.AppModuleVersion{
-					OpCode:  "andlt",
+					OpCode:  "gteq",
 					Version: event.Fixed,
 				})
 			}
