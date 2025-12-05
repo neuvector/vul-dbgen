@@ -130,7 +130,7 @@ func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 		if lowercase {
 			moduleName = strings.ToLower(moduleName)
 		}
-		affectedVer := getVersion(r.AffectedVersion)
+		affectedVer := getVersion(cleanupVersion(r.AffectedVersion))
 		fixedVer := getVersion(cleanupVersion(r.PatchedVersion.Identifier))
 		key := fmt.Sprintf("%s-%s", vulName, moduleName)
 
