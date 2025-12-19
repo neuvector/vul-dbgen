@@ -365,6 +365,7 @@ func calibrateAndMerge(goVulnMap map[string]*common.AppModuleVul, ubuntuVulnerab
 		"GO-2025-3918",
 		"GO-2025-3917",
 		"GO-2025-3919",
+		"GO-2025-4235",
 	})
 
 	for cve, appVul := range goVulnMap {
