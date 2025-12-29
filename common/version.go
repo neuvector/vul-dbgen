@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	// "fmt"
+
 	"regexp"
 	"strconv"
 	"strings"
@@ -123,6 +123,10 @@ func NewVersion(str string) (Version, error) {
 		if !unicode.IsDigit(r) && !unicode.IsLetter(r) && !containsRune(revisionAllowedSymbols, r) {
 			return Version{}, errors.New("invalid character in revision")
 		}
+	}
+
+	if str == "NA" || str == "N/A" {
+		return Version{}, errors.New("version is not available")
 	}
 
 	return version, nil
