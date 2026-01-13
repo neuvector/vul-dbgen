@@ -110,6 +110,9 @@ func (f *PhotonFetcher) fetchLocal(files []photonFile) ([]common.Vulnerability, 
 
 		for _, vuln := range r {
 			namespace := fmt.Sprintf("photon:%v", file.Version)
+			if vuln.ResolvedVersion == "N/A" || vuln.ResolvedVersion == "NA" {
+				vuln.ResolvedVersion = common.MaxVersion.String()
+			}
 			version, err2 := common.NewVersion(vuln.ResolvedVersion)
 			if err != nil {
 				log.WithFields(log.Fields{"err": err2, "vuln": vuln.CveId}).Info("Unable to resolve version for photon vulnerability.")
