@@ -15,6 +15,22 @@ const (
 	notesFlagName = "updater/notes"
 )
 
+type WhitelistEntry struct {
+	CVE        string
+	AppName    string
+	ModuleName string
+}
+
+var (
+	nvdAppWhitelist = []WhitelistEntry{
+		{
+			CVE:        "CVE-2025-14847",
+			AppName:    "mongodb",
+			ModuleName: "mongodb",
+		},
+	}
+)
+
 func IgnoreSeverity(s common.Priority) bool {
 	return s != common.Critical && s != common.High && s != common.Medium && s != common.Low
 }
@@ -484,11 +500,58 @@ func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppMod
 		return false, nil, nil, nil
 	}
 
+	appVuls = injectNvdWhitelistApps(appVuls)
 	correctAppAffectedVersion(appVuls)
 
 	vuls, apps := assignMetadata(osVuls, appVuls)
 
 	return status, vuls, apps, rawFiles
+}
+
+func injectNvdWhitelistApps(appVuls []*common.AppModuleVul) []*common.AppModuleVul {
+	exists := make(map[string]struct{}, len(appVuls))
+	for _, app := range appVuls {
+		key := fmt.Sprintf("%s:%s", app.ModuleName, app.VulName)
+		exists[key] = struct{}{}
+	}
+
+	for _, cve := range nvdAppWhitelist {
+		module := "nvd"
+		key := fmt.Sprintf("%s:%s", module, cve)
+		if _, ok := exists[key]; ok {
+			continue
+		}
+
+		meta, ok := nvd.NVD.GetMetadata(cve.CVE)
+		if !ok {
+			log.WithFields(log.Fields{"cve": cve}).Warn("NVD whitelist CVE not found")
+			continue
+		}
+
+		mv := common.AppModuleVul{
+			VulName:       cve.CVE,
+			AppName:       cve.AppName,
+			ModuleName:    cve.ModuleName,
+			Severity:      meta.Severity,
+			CVEs:          []string{cve.CVE},
+			Description:   meta.Description,
+			Link:          meta.Link,
+			ScoreV3:       meta.CVSSv3.Score,
+			VectorsV3:     meta.CVSSv3.Vectors,
+			Score:         meta.CVSSv2.Score,
+			Vectors:       meta.CVSSv2.Vectors,
+			IssuedDate:    meta.PublishedDate,
+			LastModDate:   meta.LastModifiedDate,
+			FixedVer:      []common.AppModuleVersion{},
+			AffectedVer:   []common.AppModuleVersion{},
+			UnaffectedVer: []common.AppModuleVersion{},
+		}
+
+		appVuls = append(appVuls, &mv)
+		exists[key] = struct{}{}
+	}
+
+	return appVuls
 }
 
 func doVulnerabilitiesNamespacing(vulnerabilities []common.Vulnerability) []*common.Vulnerability {
