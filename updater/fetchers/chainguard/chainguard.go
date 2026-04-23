@@ -2,7 +2,7 @@ package chainguard
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -15,7 +15,6 @@ import (
 
 const (
 	securityURL  = "https://packages.cgr.dev/chainguard/security.json"
-	updaterFlag  = "chainguard-secdbUpdater"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 	// Chainguard uses rolling releases, so we use a generic version identifier
 	chainguardVersion = "rolling"
@@ -26,10 +25,6 @@ var cveRegex = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
 type ChainguardFetcher struct{}
 
 type secDBData struct {
-	APKUrl   string `json:"apkurl"`
-	Archs    []string `json:"archs"`
-	RepoName string `json:"reponame"`
-	URLPrefix string `json:"urlprefix"`
 	Packages []struct {
 		Pkg struct {
 			Name     string                     `json:"name"`
@@ -114,8 +109,7 @@ func (u *ChainguardFetcher) downloadSecDB(url string) ([]common.Vulnerability, e
 		log.WithError(err).WithFields(log.Fields{"url": url}).Error("Failed to download chainguard db")
 		return nil, err
 	}
-
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
 	return parseSecDB(body, url)

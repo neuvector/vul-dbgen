@@ -2,7 +2,7 @@ package wolfi
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -15,7 +15,6 @@ import (
 
 const (
 	securityURL  = "https://packages.wolfi.dev/os/security.json"
-	updaterFlag  = "wolfi-secdbUpdater"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 	// Wolfi uses rolling releases, so we use a generic version identifier
 	wolfiVersion = "rolling"
@@ -26,10 +25,6 @@ var cveRegex = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
 type WolfiFetcher struct{}
 
 type secDBData struct {
-	APKUrl   string `json:"apkurl"`
-	Archs    []string `json:"archs"`
-	RepoName string `json:"reponame"`
-	URLPrefix string `json:"urlprefix"`
 	Packages []struct {
 		Pkg struct {
 			Name     string                     `json:"name"`
@@ -115,7 +110,7 @@ func (u *WolfiFetcher) downloadSecDB(url string) ([]common.Vulnerability, error)
 		return nil, err
 	}
 
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
 	return parseSecDB(body, url)
