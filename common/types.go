@@ -96,6 +96,8 @@ type AppModuleVul struct {
 	VulName       string             `json:"VN"`
 	AppName       string             `json:"AN"`
 	ModuleName    string             `json:"MN"`
+	ImportPaths   []string           `json:"IP,omitempty"`
+	Symbols       []string           `json:"SYM,omitempty"`
 	Description   string             `json:"D"`
 	Link          string             `json:"L"`
 	Score         float64            `json:"SC"`

@@ -251,3 +251,67 @@ func TestParseAffectedRanges(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertGoOSVToAppModuleVul_PreservesImportSymbols(t *testing.T) {
+	ecosystemSpecific := mustCreateEcosystemSpecific(t, map[string]interface{}{
+		"imports": []interface{}{
+			map[string]interface{}{
+				"path": "net",
+				"symbols": []interface{}{
+					"Resolver.LookupAddr",
+					"Resolver.LookupCNAME",
+					"Resolver.LookupMX",
+					"Resolver.LookupNS",
+					"Resolver.LookupSRV",
+				},
+			},
+			map[string]interface{}{
+				"path": "net",
+				"symbols": []interface{}{
+					"Resolver.LookupAddr",
+				},
+			},
+		},
+	})
+
+	vuln := &osvschema.Vulnerability{
+		Id:        "GO-2021-0239",
+		Details:   "Improper sanitization when resolving values from DNS in net",
+		Summary:   "Improper sanitization when resolving values from DNS in net",
+		Published: timestamppb.Now(),
+		Modified:  timestamppb.Now(),
+		Aliases:   []string{"CVE-2021-33195"},
+		Affected: []*osvschema.Affected{
+			{
+				Package: &osvschema.Package{
+					Name:      "stdlib",
+					Ecosystem: "Go",
+				},
+				Ranges: []*osvschema.Range{
+					{
+						Type: osvschema.Range_SEMVER,
+						Events: []*osvschema.Event{
+							{Introduced: "0"},
+							{Fixed: "1.15.13"},
+							{Introduced: "1.16.0-0"},
+							{Fixed: "1.16.5"},
+						},
+					},
+				},
+				EcosystemSpecific: ecosystemSpecific,
+			},
+		},
+	}
+
+	appVuls, cves := convertGoOSVToAppModuleVul(vuln)
+	require.Len(t, appVuls, 1)
+	require.True(t, cves.Contains("CVE-2021-33195"))
+	require.Equal(t, []string{"net"}, appVuls[0].ImportPaths)
+	require.Equal(t, []string{
+		"Resolver.LookupAddr",
+		"Resolver.LookupCNAME",
+		"Resolver.LookupMX",
+		"Resolver.LookupNS",
+		"Resolver.LookupSRV",
+	}, appVuls[0].Symbols)
+}
