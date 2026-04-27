@@ -21,6 +21,11 @@ const (
 	goVulnDBPath = "apps/golang-osv.zip"
 )
 
+type ecosystemSpecificImport struct {
+	Path    string
+	Symbols []string
+}
+
 // parseEcosystemSpecificCustomRanges parses custom_ranges from ecosystem_specific struct
 func parseEcosystemSpecificCustomRanges(ecosystemSpecific *structpb.Struct) ([]*osvschema.Range, error) {
 	if ecosystemSpecific == nil {
@@ -55,6 +60,92 @@ func parseEcosystemSpecificCustomRanges(ecosystemSpecific *structpb.Struct) ([]*
 	}
 
 	return ranges, nil
+}
+
+func parseStringListValue(listValue *structpb.ListValue) []string {
+	if listValue == nil {
+		return nil
+	}
+
+	values := make([]string, 0, len(listValue.Values))
+	for _, item := range listValue.Values {
+		if value := item.GetStringValue(); value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+func parseEcosystemSpecificImports(ecosystemSpecific *structpb.Struct) ([]ecosystemSpecificImport, error) {
+	if ecosystemSpecific == nil {
+		return nil, nil
+	}
+
+	importsValue, ok := ecosystemSpecific.Fields["imports"]
+	if !ok || importsValue == nil {
+		return nil, nil
+	}
+
+	listValue := importsValue.GetListValue()
+	if listValue == nil {
+		return nil, nil
+	}
+
+	imports := make([]ecosystemSpecificImport, 0, len(listValue.Values))
+	for _, item := range listValue.Values {
+		structValue := item.GetStructValue()
+		if structValue == nil {
+			continue
+		}
+
+		parsedImport := ecosystemSpecificImport{}
+		if pathValue, ok := structValue.Fields["path"]; ok && pathValue != nil {
+			parsedImport.Path = pathValue.GetStringValue()
+		}
+		if symbolsValue, ok := structValue.Fields["symbols"]; ok && symbolsValue != nil {
+			parsedImport.Symbols = parseStringListValue(symbolsValue.GetListValue())
+		}
+
+		if parsedImport.Path == "" && len(parsedImport.Symbols) == 0 {
+			continue
+		}
+		imports = append(imports, parsedImport)
+	}
+
+	return imports, nil
+}
+
+func appendUniqueStrings(dst []string, values ...string) []string {
+	existing := make(map[string]struct{}, len(dst))
+	for _, value := range dst {
+		existing[value] = struct{}{}
+	}
+
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := existing[value]; ok {
+			continue
+		}
+		dst = append(dst, value)
+		existing[value] = struct{}{}
+	}
+
+	return dst
+}
+
+func parseAffectedImports(affected *osvschema.Affected, appVul *common.AppModuleVul) {
+	if affected.EcosystemSpecific == nil {
+		return
+	}
+
+	imports, _ := parseEcosystemSpecificImports(affected.EcosystemSpecific)
+	for _, parsedImport := range imports {
+		appVul.ImportPaths = appendUniqueStrings(appVul.ImportPaths, parsedImport.Path)
+		appVul.Symbols = appendUniqueStrings(appVul.Symbols, parsedImport.Symbols...)
+	}
 }
 
 func loadZipFile(zipFile *zip.File) (*osvschema.Vulnerability, error) {
@@ -246,6 +337,8 @@ func convertGoOSVToAppModuleVul(vulnerability *osvschema.Vulnerability) ([]*comm
 			VulName:     vulnerability.Id,
 			AppName:     "go",
 			ModuleName:  "go:" + affected.Package.Name,
+			ImportPaths: make([]string, 0),
+			Symbols:     make([]string, 0),
 			Description: vulnerability.Details,
 			IssuedDate:  vulnerability.Published.AsTime(),
 			LastModDate: vulnerability.Modified.AsTime(),
@@ -290,6 +383,7 @@ func convertGoOSVToAppModuleVul(vulnerability *osvschema.Vulnerability) ([]*comm
 			}
 		}
 
+		parseAffectedImports(affected, appVul)
 		parseAffectedRanges(affected, appVul)
 
 		appVuls = append(appVuls, appVul)
