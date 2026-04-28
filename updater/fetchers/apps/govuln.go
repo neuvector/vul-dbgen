@@ -148,24 +148,24 @@ func parseAffectedImports(affected *osvschema.Affected, appVul *common.AppModule
 	}
 }
 
-func loadZipFile(zipFile *zip.File) (*osvschema.Vulnerability, error) {
-	file, err := zipFile.Open()
+func loadOSVFeedEntry(feedEntry *zip.File) (*osvschema.Vulnerability, error) {
+	file, err := feedEntry.Open()
 	if err != nil {
-		log.Warnf("Could not read %s: %v", zipFile.Name, err)
+		log.Warnf("Could not read %s: %v", feedEntry.Name, err)
 		return nil, err
 	}
 	defer file.Close()
 
 	content, err := io.ReadAll(file)
 	if err != nil {
-		log.Warnf("Could not read %s: %v", zipFile.Name, err)
+		log.Warnf("Could not read %s: %v", feedEntry.Name, err)
 		return nil, err
 	}
 
 	var vulnerability osvschema.Vulnerability
 
 	if err := protojson.Unmarshal(content, &vulnerability); err != nil {
-		log.Warnf("%s is not a valid JSON file: %v", zipFile.Name, err)
+		log.Warnf("%s is not a valid JSON file: %v", feedEntry.Name, err)
 		return nil, err
 	}
 	return &vulnerability, nil
@@ -431,7 +431,7 @@ func loadGoOSVVulnerabilities() (map[string]*common.AppModuleVul, utils.Set, err
 	defer zipReader.Close()
 
 	for _, file := range zipReader.File {
-		vulnerability, err := loadZipFile(file)
+		vulnerability, err := loadOSVFeedEntry(file)
 		if err != nil {
 			log.WithFields(log.Fields{"file": file.Name, "error": err}).Warn("Failed to load Go OSV file")
 			continue
