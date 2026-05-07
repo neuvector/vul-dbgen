@@ -28,6 +28,8 @@ var (
 		ovalInfo{"suse/suse.linux.enterprise.server.15.xml.gz", "SUSE Linux Enterprise Server 15 ", "sles:"},
 		ovalInfo{"suse/suse.linux.enterprise.server.12.xml.gz", "SUSE Linux Enterprise Server 12 ", "sles:"},
 		ovalInfo{"suse/suse.linux.enterprise.server.11.xml.gz", "SUSE Linux Enterprise Server 11 ", "sles:"},
+		ovalInfo{"suse/opensuse.leap.16.0.xml.gz", "openSUSE Leap 16.0 ", "sles:l"},
+		ovalInfo{"suse/opensuse.leap.15.6.xml.gz", "openSUSE Leap 15.6 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.5.xml.gz", "openSUSE Leap 15.5 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.4.xml.gz", "openSUSE Leap 15.4 ", "sles:l"},
 		ovalInfo{"suse/opensuse.leap.15.3.xml.gz", "openSUSE Leap 15.3 ", "sles:l"},
