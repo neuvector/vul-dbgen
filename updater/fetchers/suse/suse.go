@@ -25,28 +25,31 @@ type ovalInfo struct {
 
 var (
 	ovals []ovalInfo = []ovalInfo{
-		ovalInfo{"suse/suse.linux.enterprise.server.15.xml.gz", "SUSE Linux Enterprise Server 15 ", "sles:"},
-		ovalInfo{"suse/suse.linux.enterprise.server.12.xml.gz", "SUSE Linux Enterprise Server 12 ", "sles:"},
-		ovalInfo{"suse/suse.linux.enterprise.server.11.xml.gz", "SUSE Linux Enterprise Server 11 ", "sles:"},
-		ovalInfo{"suse/opensuse.leap.15.5.xml.gz", "openSUSE Leap 15.5 ", "sles:l"},
-		ovalInfo{"suse/opensuse.leap.15.4.xml.gz", "openSUSE Leap 15.4 ", "sles:l"},
-		ovalInfo{"suse/opensuse.leap.15.3.xml.gz", "openSUSE Leap 15.3 ", "sles:l"},
-		ovalInfo{"suse/opensuse.leap.15.2.xml.gz", "openSUSE Leap 15.2 ", "sles:l"},
-		ovalInfo{"suse/opensuse.leap.15.1.xml.gz", "openSUSE Leap 15.1 ", "sles:l"},
-		ovalInfo{"suse/opensuse.leap.15.0.xml.gz", "openSUSE Leap 15.0 ", "sles:l"},
-		ovalInfo{"suse/opensuse.tumbleweed.xml.gz", "openSUSE Tumbleweed ", "sles:tw"},
-		ovalInfo{"suse/suse.liberty.linux.7.xml.gz", "SUSE Liberty Linux 7", "sles:lib"},
-		ovalInfo{"suse/suse.liberty.linux.8.xml.gz", "SUSE Liberty Linux 8", "sles:lib"},
-		ovalInfo{"suse/suse.liberty.linux.9.xml.gz", "SUSE Liberty Linux 9", "sles:lib"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.xml.gz", "SUSE Linux Enterprise Micro 5", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.0.xml.gz", "SUSE Linux Enterprise Micro 5.0", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.1.xml.gz", "SUSE Linux Enterprise Micro 5.1", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.2.xml.gz", "SUSE Linux Enterprise Micro 5.2", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.3.xml.gz", "SUSE Linux Enterprise Micro 5.3", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.4.xml.gz", "SUSE Linux Enterprise Micro 5.4", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.5.5.xml.gz", "SUSE Linux Enterprise Micro 5.5", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.6.0.xml.gz", "SUSE Linux Micro 6.0", "sles:micro"},
-		ovalInfo{"suse/suse.linux.enterprise.micro.6.1.xml.gz", "SUSE Linux Micro 6.1", "sles:micro"},
+		{"suse/suse.linux.enterprise.server.16.xml.gz", "SUSE Linux Enterprise Server 16 ", "sles:"},
+		{"suse/suse.linux.enterprise.server.15.xml.gz", "SUSE Linux Enterprise Server 15 ", "sles:"},
+		{"suse/suse.linux.enterprise.server.12.xml.gz", "SUSE Linux Enterprise Server 12 ", "sles:"},
+		{"suse/suse.linux.enterprise.server.11.xml.gz", "SUSE Linux Enterprise Server 11 ", "sles:"},
+		{"suse/opensuse.leap.16.0.xml.gz", "openSUSE Leap 16.0 ", "sles:l"},
+		{"suse/opensuse.leap.15.6.xml.gz", "openSUSE Leap 15.6 ", "sles:l"},
+		{"suse/opensuse.leap.15.5.xml.gz", "openSUSE Leap 15.5 ", "sles:l"},
+		{"suse/opensuse.leap.15.4.xml.gz", "openSUSE Leap 15.4 ", "sles:l"},
+		{"suse/opensuse.leap.15.3.xml.gz", "openSUSE Leap 15.3 ", "sles:l"},
+		{"suse/opensuse.leap.15.2.xml.gz", "openSUSE Leap 15.2 ", "sles:l"},
+		{"suse/opensuse.leap.15.1.xml.gz", "openSUSE Leap 15.1 ", "sles:l"},
+		{"suse/opensuse.leap.15.0.xml.gz", "openSUSE Leap 15.0 ", "sles:l"},
+		{"suse/opensuse.tumbleweed.xml.gz", "openSUSE Tumbleweed ", "sles:tw"},
+		{"suse/suse.liberty.linux.7.xml.gz", "SUSE Liberty Linux 7", "sles:lib"},
+		{"suse/suse.liberty.linux.8.xml.gz", "SUSE Liberty Linux 8", "sles:lib"},
+		{"suse/suse.liberty.linux.9.xml.gz", "SUSE Liberty Linux 9", "sles:lib"},
+		{"suse/suse.linux.enterprise.micro.5.xml.gz", "SUSE Linux Enterprise Micro 5", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.0.xml.gz", "SUSE Linux Enterprise Micro 5.0", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.1.xml.gz", "SUSE Linux Enterprise Micro 5.1", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.2.xml.gz", "SUSE Linux Enterprise Micro 5.2", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.3.xml.gz", "SUSE Linux Enterprise Micro 5.3", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.4.xml.gz", "SUSE Linux Enterprise Micro 5.4", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.5.5.xml.gz", "SUSE Linux Enterprise Micro 5.5", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.6.0.xml.gz", "SUSE Linux Micro 6.0", "sles:micro"},
+		{"suse/suse.linux.enterprise.micro.6.1.xml.gz", "SUSE Linux Micro 6.1", "sles:micro"},
 	}
 
 	noVersion = map[string]struct{}{
@@ -477,7 +480,7 @@ func severity(def definition) common.Priority {
 	case "critical":
 		return common.Critical
 	default:
-		//log.Warningf("could not determine vulnerability priority from: %s.", prio)
+		// log.Warningf("could not determine vulnerability priority from: %s.", prio)
 		return common.Unknown
 	}
 }
