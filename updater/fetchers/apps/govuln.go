@@ -417,6 +417,23 @@ func getPreferredCVEKey(appVul *common.AppModuleVul) string {
 	return appVul.VulName
 }
 
+func applyUbuntuCalibration(appVul *common.AppModuleVul, ubuntuVulnerability common.Vulnerability) {
+	appVul.VulName = ubuntuVulnerability.Name
+	appVul.Severity = ubuntuVulnerability.Severity
+	appVul.Score = ubuntuVulnerability.CVSSv2.Score
+	appVul.Vectors = ubuntuVulnerability.CVSSv2.Vectors
+	appVul.ScoreV3 = ubuntuVulnerability.CVSSv3.Score
+	appVul.VectorsV3 = ubuntuVulnerability.CVSSv3.Vectors
+	appVul.Link = ubuntuVulnerability.Link
+
+	if appVul.IssuedDate.IsZero() && !ubuntuVulnerability.IssuedDate.IsZero() {
+		appVul.IssuedDate = ubuntuVulnerability.IssuedDate
+	}
+	if appVul.LastModDate.IsZero() && !ubuntuVulnerability.LastModDate.IsZero() {
+		appVul.LastModDate = ubuntuVulnerability.LastModDate
+	}
+}
+
 func loadGoOSVVulnerabilities() (map[string]*common.AppModuleVul, utils.Set, error) {
 	log.Info("Loading Go OSV vulnerabilities...")
 	goVulnMap := make(map[string]*common.AppModuleVul)
@@ -464,13 +481,7 @@ func calibrateAndMerge(goVulnMap map[string]*common.AppModuleVul, ubuntuVulnerab
 
 	for cve, appVul := range goVulnMap {
 		if ubuntuVulnerability, ok := ubuntuVulnerabilityMap[cve]; ok {
-			appVul.VulName = ubuntuVulnerability.Name
-			appVul.Severity = ubuntuVulnerability.Severity
-			appVul.Score = ubuntuVulnerability.CVSSv2.Score
-			appVul.Vectors = ubuntuVulnerability.CVSSv2.Vectors
-			appVul.ScoreV3 = ubuntuVulnerability.CVSSv3.Score
-			appVul.VectorsV3 = ubuntuVulnerability.CVSSv3.Vectors
-			appVul.Link = ubuntuVulnerability.Link
+			applyUbuntuCalibration(appVul, ubuntuVulnerability)
 		}
 
 		if whileListGoVuls.Contains(appVul.VulName) {
