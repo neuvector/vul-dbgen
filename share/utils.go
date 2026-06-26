@@ -3,11 +3,7 @@ package utils
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os/exec"
 	"runtime"
@@ -16,21 +12,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
-
-func Encrypt(encryptionKey, text []byte) ([]byte, error) {
-	block, err := aes.NewCipher(encryptionKey)
-	if err != nil {
-		return nil, err
-	}
-	ciphertext := make([]byte, aes.BlockSize+len(text))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-	cfb := cipher.NewCFBEncrypter(block, iv)
-	cfb.XORKeyStream(ciphertext[aes.BlockSize:], text)
-	return ciphertext, nil
-}
 
 func GzipBytes(buf []byte) []byte {
 	var b bytes.Buffer
