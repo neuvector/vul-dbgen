@@ -3,6 +3,7 @@ package updater
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -124,12 +125,19 @@ func fetchAppVul() (bool, []*common.AppModuleVul) {
 	var appVuls []*common.AppModuleVul
 
 	for name, f := range appFetchers {
+		start := time.Now()
+		log.WithField("name", name).Info("Start app vulnerability fetcher")
 		response, err := f.FetchUpdate()
 		if err != nil {
 			log.WithFields(log.Fields{"name": name, "error": err}).Error("App CVE update FAIL")
 			return false, nil
 		} else {
 			appVuls = append(appVuls, response.Vulnerabilities...)
+			log.WithFields(log.Fields{
+				"name":            name,
+				"vulnerabilities": len(response.Vulnerabilities),
+				"elapsed":         time.Since(start).String(),
+			}).Info("App vulnerability fetcher done")
 		}
 	}
 
@@ -137,7 +145,11 @@ func fetchAppVul() (bool, []*common.AppModuleVul) {
 }
 
 func correctAppAffectedVersion(appVuls []*common.AppModuleVul) {
-	for _, app := range appVuls {
+	start := time.Now()
+	updated := 0
+	checked := 0
+	log.WithField("apps", len(appVuls)).Info("Start correcting app affected versions")
+	for i, app := range appVuls {
 		if len(app.AffectedVer) == 0 || len(app.FixedVer) == 0 {
 			if affects, fixes, ok := nvd.NVD.GetAffectedVersion(app.VulName); ok {
 				// log.WithFields(log.Fields{"name": app.VulName, "affects": affects, "fixes": fixes}).Info("jar update")
@@ -156,9 +168,24 @@ func correctAppAffectedVersion(appVuls []*common.AppModuleVul) {
 						app.FixedVer = append(app.FixedVer, ver)
 					}
 				}
+				updated++
 			}
 		}
+		checked++
+		if (i+1)%1000 == 0 {
+			log.WithFields(log.Fields{
+				"processed": i + 1,
+				"total":     len(appVuls),
+				"updated":   updated,
+				"elapsed":   time.Since(start).String(),
+			}).Info("Correcting app affected versions progress")
+		}
 	}
+	log.WithFields(log.Fields{
+		"processed": checked,
+		"updated":   updated,
+		"elapsed":   time.Since(start).String(),
+	}).Info("Finished correcting app affected versions")
 }
 
 func fetchRawData() (bool, []*common.RawFile) {
@@ -307,11 +334,16 @@ func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common
 
 func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) ([]*common.Vulnerability, []*common.AppModuleVul) {
 	cveMap := make(map[string]*common.NVDMetadata)
+	start := time.Now()
+	log.WithFields(log.Fields{
+		"distroVuls": len(vuls),
+		"appVuls":    len(apps),
+	}).Info("Start assigning metadata")
 
 	// Use two loops to cross-reference metadata provided by all feeds and nvd
 
 	// first loop, for each cve merge meta with NVD
-	for _, v := range vuls {
+	for i, v := range vuls {
 		cves := []common.CVE{common.CVE{Name: v.Name}}
 		if len(v.CVEs) > 0 {
 			cves = v.CVEs
@@ -342,9 +374,18 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				cveMap[key] = meta
 			}
 		}
+		if (i+1)%10000 == 0 {
+			log.WithFields(log.Fields{
+				"phase":     "distro-pass1",
+				"processed": i + 1,
+				"total":     len(vuls),
+				"cveMap":    len(cveMap),
+				"elapsed":   time.Since(start).String(),
+			}).Info("Assign metadata progress")
+		}
 	}
 
-	for _, app := range apps {
+	for i, app := range apps {
 		cves := []string{app.VulName}
 		if len(app.CVEs) > 0 {
 			cves = append(cves, app.CVEs...)
@@ -372,13 +413,22 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				cveMap[cve] = meta
 			}
 		}
+		if (i+1)%1000 == 0 {
+			log.WithFields(log.Fields{
+				"phase":     "app-pass1",
+				"processed": i + 1,
+				"total":     len(apps),
+				"cveMap":    len(cveMap),
+				"elapsed":   time.Since(start).String(),
+			}).Info("Assign metadata progress")
+		}
 	}
 
 	// second loop, assign the severity and score to the record
 	outVuls := make([]*common.Vulnerability, 0)
 	outApps := make([]*common.AppModuleVul, 0)
 
-	for _, v := range vuls {
+	for i, v := range vuls {
 		cves := []common.CVE{common.CVE{Name: v.Name}}
 		if len(v.CVEs) > 0 {
 			cves = v.CVEs
@@ -424,9 +474,18 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 
 			common.DEBUG_VULN(v, "post distro")
 		}
+		if (i+1)%10000 == 0 {
+			log.WithFields(log.Fields{
+				"phase":     "distro-pass2",
+				"processed": i + 1,
+				"total":     len(vuls),
+				"kept":      len(outVuls),
+				"elapsed":   time.Since(start).String(),
+			}).Info("Assign metadata progress")
+		}
 	}
 
-	for _, app := range apps {
+	for i, app := range apps {
 		cves := []string{app.VulName}
 		if len(app.CVEs) > 0 {
 			cves = append(cves, app.CVEs...)
@@ -471,7 +530,23 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 
 			common.DEBUG_VULN(app, "post app")
 		}
+		if (i+1)%1000 == 0 {
+			log.WithFields(log.Fields{
+				"phase":     "app-pass2",
+				"processed": i + 1,
+				"total":     len(apps),
+				"kept":      len(outApps),
+				"elapsed":   time.Since(start).String(),
+			}).Info("Assign metadata progress")
+		}
 	}
+
+	log.WithFields(log.Fields{
+		"distroOut": len(outVuls),
+		"appOut":    len(outApps),
+		"cveMap":    len(cveMap),
+		"elapsed":   time.Since(start).String(),
+	}).Info("Finished assigning metadata")
 
 	return outVuls, outApps
 }
@@ -484,26 +559,36 @@ func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppMod
 	if !status {
 		return status, nil, nil, nil
 	}
+	log.WithField("distroVuls", len(osVuls)).Info("Fetched distro vulnerabilities")
 
 	status, rawFiles := fetchRawData()
 	if !status {
 		return status, nil, nil, nil
 	}
+	log.WithField("rawFiles", len(rawFiles)).Info("Fetched raw vulnerability files")
 
 	status, appVuls := fetchAppVul()
 	if !status {
 		return status, nil, nil, nil
 	}
+	log.WithField("appVuls", len(appVuls)).Info("Fetched app vulnerabilities")
 
+	log.Info("Start loading NVD metadata")
 	if err := nvd.NVD.Load(); err != nil {
 		log.Errorf("an error occured when loading NVD: %s.", err)
 		return false, nil, nil, nil
 	}
+	log.Info("Finished loading NVD metadata")
 
 	appVuls = injectNvdWhitelistApps(appVuls)
+	log.WithField("appVuls", len(appVuls)).Info("Injected NVD whitelist apps")
 	correctAppAffectedVersion(appVuls)
 
 	vuls, apps := assignMetadata(osVuls, appVuls)
+	log.WithFields(log.Fields{
+		"distroVuls": len(vuls),
+		"appVuls":    len(apps),
+	}).Info("Fetch pipeline complete")
 
 	return status, vuls, apps, rawFiles
 }

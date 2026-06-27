@@ -1,12 +1,14 @@
 package oracle
 
 import (
-	"bufio"
+	"bytes"
+	"compress/bzip2"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +22,7 @@ import (
 const (
 	firstConsideredELSA = 7
 
-	ovalURI    = "https://linux.oracle.com/oval/"
+	ovalURI    = "https://linux.oracle.com/security/oval/"
 	retryTimes = 5
 )
 
@@ -30,7 +32,7 @@ var (
 		".ksplice1.",
 	}
 
-	elsaRegexp = regexp.MustCompile(`com.oracle.elsa-(\d+).xml`)
+	elsaRegexp = regexp.MustCompile(`href="(com\.oracle\.elsa-(?:all|ol(?:6|7|8|9|10))\.xml\.bz2)"`)
 )
 
 type oval struct {
@@ -89,6 +91,9 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	log.Info("fetching Oracle vulnerabilities")
 
 	req, err := http.NewRequest("GET", ovalURI, nil)
+	if err != nil {
+		return resp, err
+	}
 	req.Header.Add("User-Agent", "dbgen")
 	client := http.Client{}
 	r, err := client.Do(req)
@@ -96,37 +101,37 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 		log.Errorf("could not download Oracle's directory: %s", err)
 		return resp, common.ErrCouldNotDownload
 	}
+	defer r.Body.Close()
 
-	// Get the list of ELSAs that we have to process.
-	var elsaList []int
-	scanner := bufio.NewScanner(r.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		r := elsaRegexp.FindStringSubmatch(line)
-		if len(r) == 2 && len(r[1]) > 4 {
-			year, _ := strconv.Atoi(r[1][:4])
-			if year >= common.FirstYear {
-				elsaNo, _ := strconv.Atoi(r[1])
-				elsaList = append(elsaList, elsaNo)
-			}
-		}
+	indexBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Errorf("could not read Oracle's directory: %s", err)
+		return resp, common.ErrCouldNotDownload
 	}
 
-	r.Body.Close()
+	feedFiles := listFeedFiles(indexBody)
+	if len(feedFiles) == 0 {
+		log.Error("Failed to find Oracle oval feeds")
+		return resp, fmt.Errorf("Failed to find Oracle oval feeds")
+	}
 
-	for i, elsa := range elsaList {
+	vulnMap := make(map[string]common.Vulnerability)
+
+	for i, elsaFile := range feedFiles {
 		var vs []common.Vulnerability
 
 		retry := 0
 		for retry <= retryTimes {
-			elsaFile := fmt.Sprintf("com.oracle.elsa-%d.xml", elsa)
 			rurl := fmt.Sprintf("%s%s", ovalURI, elsaFile)
 
 			client := http.Client{}
-			req, _ := http.NewRequest("GET", rurl, nil)
+			req, err := http.NewRequest("GET", rurl, nil)
+			if err != nil {
+				return resp, err
+			}
 			req.Header.Add("User-Agent", "dbgen")
 			if r, err := client.Do(req); err == nil {
-				vs, err = parseELSA(elsaFile, r.Body)
+				vs, err = parseBZ2ELSA(elsaFile, r.Body)
 
 				r.Body.Close()
 				if err == nil {
@@ -148,13 +153,17 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 
 		// Collect vulnerabilities.
 		for _, v := range vs {
-			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
+			mergeVulnerability(vulnMap, v)
 		}
 
 		// Pause to prevent the website from blacklisting us.
 		if i%20 == 0 {
 			time.Sleep(time.Second * 2)
 		}
+	}
+
+	for _, v := range vulnMap {
+		resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 	}
 
 	if len(resp.Vulnerabilities) == 0 {
@@ -166,11 +175,30 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	return resp, nil
 }
 
+func parseBZ2ELSA(elsa string, compressedReader io.Reader) ([]common.Vulnerability, error) {
+	return parseELSA(elsa, bzip2.NewReader(compressedReader))
+}
+
 func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []common.Vulnerability, err error) {
+	body, err := io.ReadAll(ovalReader)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmed := bytes.TrimSpace(body)
+	if bytes.HasPrefix(trimmed, []byte("<!DOCTYPE html")) || bytes.HasPrefix(trimmed, []byte("<html")) {
+		log.WithFields(log.Fields{"elsa": elsa}).Warn("Oracle ELSA returned HTML instead of XML, skipping")
+		return nil, nil
+	}
+
 	// Decode the XML.
 	var ov oval
-	err = xml.NewDecoder(ovalReader).Decode(&ov)
+	err = xml.NewDecoder(bytes.NewReader(body)).Decode(&ov)
 	if err != nil {
+		if bytes.Contains(bytes.ToLower(trimmed), []byte("<html")) || bytes.Contains(bytes.ToLower(trimmed), []byte("<body")) {
+			log.WithFields(log.Fields{"elsa": elsa}).Warn("Oracle ELSA returned non-XML content, skipping")
+			return nil, nil
+		}
 		log.Errorf("could not decode Oracle's XML: %s", err)
 		err = common.ErrCouldNotParse
 		return
@@ -216,6 +244,100 @@ func parseELSA(elsa string, ovalReader io.Reader) (vulnerabilities []common.Vuln
 	}
 
 	return
+}
+
+func listFeedFiles(indexBody []byte) []string {
+	matches := elsaRegexp.FindAllSubmatch(indexBody, -1)
+	files := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) != 2 {
+			continue
+		}
+		name := string(match[1])
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		files = append(files, name)
+	}
+
+	sort.Strings(files)
+	return files
+}
+
+func mergeVulnerability(vulnMap map[string]common.Vulnerability, v common.Vulnerability) {
+	if existing, ok := vulnMap[v.Name]; ok {
+		existing.FixedIn = mergeFeatureVersions(existing.FixedIn, v.FixedIn)
+		existing.CVEs = mergeCVEs(existing.CVEs, v.CVEs)
+		if existing.Description == "" {
+			existing.Description = v.Description
+		}
+		if existing.Link == "" {
+			existing.Link = v.Link
+		}
+		if existing.Severity == common.Unknown {
+			existing.Severity = v.Severity
+		}
+		if existing.IssuedDate.IsZero() || (!v.IssuedDate.IsZero() && v.IssuedDate.Before(existing.IssuedDate)) {
+			existing.IssuedDate = v.IssuedDate
+		}
+		if existing.LastModDate.IsZero() || v.LastModDate.After(existing.LastModDate) {
+			existing.LastModDate = v.LastModDate
+		}
+		vulnMap[v.Name] = existing
+		return
+	}
+
+	v.FixedIn = mergeFeatureVersions(nil, v.FixedIn)
+	v.CVEs = mergeCVEs(nil, v.CVEs)
+	vulnMap[v.Name] = v
+}
+
+func mergeFeatureVersions(existing []common.FeatureVersion, incoming []common.FeatureVersion) []common.FeatureVersion {
+	merged := make([]common.FeatureVersion, 0, len(existing)+len(incoming))
+	seen := make(map[string]struct{}, len(existing)+len(incoming))
+
+	for _, fv := range existing {
+		key := fv.Feature.Namespace + ":" + fv.Feature.Name + ":" + fv.Version.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, fv)
+	}
+	for _, fv := range incoming {
+		key := fv.Feature.Namespace + ":" + fv.Feature.Name + ":" + fv.Version.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		merged = append(merged, fv)
+	}
+
+	return merged
+}
+
+func mergeCVEs(existing []common.CVE, incoming []common.CVE) []common.CVE {
+	merged := make([]common.CVE, 0, len(existing)+len(incoming))
+	seen := make(map[string]struct{}, len(existing)+len(incoming))
+
+	for _, cve := range existing {
+		if _, ok := seen[cve.Name]; ok {
+			continue
+		}
+		seen[cve.Name] = struct{}{}
+		merged = append(merged, cve)
+	}
+	for _, cve := range incoming {
+		if _, ok := seen[cve.Name]; ok {
+			continue
+		}
+		seen[cve.Name] = struct{}{}
+		merged = append(merged, cve)
+	}
+
+	return merged
 }
 
 func getCriterions(node criteria) [][]criterion {
