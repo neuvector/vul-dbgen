@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,18 +39,17 @@ const (
 	jsonUrl      = "https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%s.json.gz"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
-	nvdAPIkey      = "NVD_KEY"
-	nvdSubfolder   = "nvd"
-	nvdDBName      = "nvd_metadata.db"
-	retryTimes     = 5
-	timeFormat     = "2006-01-02T15:04Z"
-	timeFormatNew  = "2006-01-02T15:04:05"
-	resultsPerPage = 2000
+	nvdAPIkey       = "NVD_KEY"
+	nvdSubfolder    = "nvd"
+	nvdDBName       = "nvd_metadata.db"
+	retryTimes      = 5
+	timeFormat      = "2006-01-02T15:04Z"
+	timeFormatNew   = "2006-01-02T15:04:05"
+	resultsPerPage  = 2000
 	batchCommitSize = 10000
 )
 
 type NVDMetadataFetcher struct {
-	lock   sync.RWMutex
 	nvdkey *string
 
 	// SQLite state
@@ -408,13 +406,10 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 	}
 
 	// Start initial transaction
-	fetcher.lock.Lock()
 	if err := fetcher.beginBatch(); err != nil {
-		fetcher.lock.Unlock()
 		log.WithFields(log.Fields{"error": err}).Error("Failed to begin NVD batch")
 		return common.ErrCouldNotDownload
 	}
-	fetcher.lock.Unlock()
 
 	// Load data from files or remote API
 	var err error
@@ -426,9 +421,7 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 	}
 
 	// Commit final batch
-	fetcher.lock.Lock()
 	commitErr := fetcher.commitBatch()
-	fetcher.lock.Unlock()
 
 	if err != nil || commitErr != nil {
 		log.WithFields(log.Fields{"loadErr": err, "commitErr": commitErr}).Error("NVD load failed")
@@ -630,9 +623,6 @@ func (fetcher *NVDMetadataFetcher) storeMetadata(cve NvdCve) error {
 	}
 
 	// SQLite insertion logic
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-
 	// Use transaction context
 	stmt := fetcher.stmtInsertMeta
 	if fetcher.txBatch != nil {
@@ -698,9 +688,6 @@ func (fetcher *NVDMetadataFetcher) toSeverity(s string) common.Priority {
 }
 
 func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata, bool) {
-	fetcher.lock.RLock()
-	defer fetcher.lock.RUnlock()
-
 	var meta common.NVDMetadata
 	var severityStr, publishedStr, modifiedStr string
 
@@ -749,9 +736,6 @@ func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata,
 
 // Return affected version and fixed version
 func (fetcher *NVDMetadataFetcher) GetAffectedVersion(name string) ([]string, []string, bool) {
-	fetcher.lock.RLock()
-	defer fetcher.lock.RUnlock()
-
 	rows, err := fetcher.stmtGetVersions.Query(name)
 	if err != nil {
 		log.WithFields(log.Fields{"cve": name, "error": err}).Error("Failed to query NVD versions")
@@ -800,9 +784,6 @@ func (fetcher *NVDMetadataFetcher) GetAffectedVersion(name string) ([]string, []
 }
 
 func (fetcher *NVDMetadataFetcher) Unload() {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
-
 	// Close prepared statements
 	if fetcher.stmtInsertMeta != nil {
 		fetcher.stmtInsertMeta.Close()
@@ -844,8 +825,7 @@ func (fetcher *NVDMetadataFetcher) Unload() {
 }
 
 func (fetcher *NVDMetadataFetcher) Clean() {
-	fetcher.lock.Lock()
-	defer fetcher.lock.Unlock()
+	// No-op: SQLite cleanup is handled by Unload()
 }
 
 func getCveDescription(cve string) string {
