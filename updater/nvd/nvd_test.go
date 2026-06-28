@@ -1,6 +1,9 @@
 package nvd
 
 import (
+	"bytes"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +140,47 @@ func TestFindPreDownloadFilesPrefersMergedFeed(t *testing.T) {
 	expected := filepath.Join(common.CVESourceRoot, "merged_nvd_feeds.json")
 	if len(files) != 1 || files[0] != expected {
 		t.Fatalf("expected merged feed to be preferred, got %v", files)
+	}
+}
+
+func TestDecodeNVDResponseJSON(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"startIndex":0,"totalResults":1,"format":"NVD_CVE","version":"2.0","vulnerabilities":[{"cve":{"id":"CVE-2026-0001"}}]}`)),
+	}
+
+	batch, err := decodeNVDResponse(resp)
+	if err != nil {
+		t.Fatalf("decodeNVDResponse returned error: %v", err)
+	}
+	if batch.TotalResultsCount != 1 {
+		t.Fatalf("expected totalResults=1, got %d", batch.TotalResultsCount)
+	}
+	if len(batch.CVEItems) != 1 || batch.CVEItems[0].Cve.ID != "CVE-2026-0001" {
+		t.Fatalf("unexpected batch payload: %+v", batch.CVEItems)
+	}
+}
+
+func TestDecodeNVDResponseRejectsHTML(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header: http.Header{
+			"Content-Type": []string{"text/html"},
+		},
+		Body: io.NopCloser(bytes.NewBufferString("<html><body>rate limited</body></html>")),
+	}
+
+	_, err := decodeNVDResponse(resp)
+	if err == nil {
+		t.Fatal("expected decodeNVDResponse to fail for html response")
+	}
+	if !strings.Contains(err.Error(), "unexpected status 429") {
+		t.Fatalf("expected status error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "rate limited") {
+		t.Fatalf("expected body snippet in error, got %v", err)
 	}
 }

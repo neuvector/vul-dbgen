@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -48,6 +47,7 @@ const (
 	timeFormatNew  = "2006-01-02T15:04:05"
 	resultsPerPage = 2000
 	batchSize      = 5000
+	maxErrorBody   = 4096
 )
 
 type NVDMetadataFetcher struct {
@@ -72,7 +72,6 @@ type StoredNVDData struct {
 // batchWriter accumulates writes and flushes in batches for better performance
 type batchWriter struct {
 	batch map[string][]byte
-	mu    sync.Mutex
 	db    *bolt.DB
 	size  int
 }
@@ -86,19 +85,16 @@ func newBatchWriter(db *bolt.DB) *batchWriter {
 }
 
 func (bw *batchWriter) add(key string, value []byte) error {
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
-
 	bw.batch[key] = value
 	bw.size++
 
 	if bw.size >= batchSize {
-		return bw.flushLocked()
+		return bw.flush()
 	}
 	return nil
 }
 
-func (bw *batchWriter) flushLocked() error {
+func (bw *batchWriter) flush() error {
 	if len(bw.batch) == 0 {
 		return nil
 	}
@@ -119,12 +115,6 @@ func (bw *batchWriter) flushLocked() error {
 	}
 
 	return err
-}
-
-func (bw *batchWriter) flush() error {
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
-	return bw.flushLocked()
 }
 
 type NvdCve struct {
@@ -340,6 +330,8 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 	// Load data from files or remote API
 	var err error
 	nvdFolder := filepath.Join(common.CVESourceRoot, nvdSubfolder)
+
+	log.WithFields(log.Fields{"hasPreDownloadFiles(nvdFolder) ": hasPreDownloadFiles(nvdFolder), "hasMergedPreDownloadFiles()": hasMergedPreDownloadFiles()}).Info("xxxxx Loading NVD data")
 	if hasPreDownloadFiles(nvdFolder) || hasMergedPreDownloadFiles() {
 		_, err = fetcher.loadPreDownload(nvdFolder)
 	} else {
@@ -358,6 +350,36 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 	}
 
 	return nil
+}
+
+func decodeNVDResponse(resp *http.Response) (*NvdData, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d content-type=%q body=%q", resp.StatusCode, contentType, trimForLog(body))
+	}
+	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return nil, fmt.Errorf("unexpected content-type %q body=%q", contentType, trimForLog(body))
+	}
+
+	var currentBatch NvdData
+	if err := json.Unmarshal(body, &currentBatch); err != nil {
+		return nil, fmt.Errorf("decode json: %w body=%q", err, trimForLog(body))
+	}
+
+	return &currentBatch, nil
+}
+
+func trimForLog(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if len(text) > maxErrorBody {
+		return text[:maxErrorBody] + "..."
+	}
+	return text
 }
 
 func hasPreDownloadFiles(folder string) bool {
