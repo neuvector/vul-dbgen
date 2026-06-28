@@ -1,7 +1,9 @@
 package common
 
 import (
-	"bytes"
+	"archive/tar"
+	"bufio"
+	"compress/gzip"
 	"encoding/binary"
 	"encoding/json"
 	"os"
@@ -9,8 +11,6 @@ import (
 	"unicode"
 
 	log "github.com/sirupsen/logrus"
-
-	utils "github.com/vul-dbgen/share"
 )
 
 const FirstYear = 2014
@@ -20,21 +20,6 @@ func CreateDBFile(dbFile *DBFile) error {
 
 	header, _ := json.Marshal(dbFile.Key)
 
-	buf, err := utils.MakeTar(dbFile.Files)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("Make tar file error")
-		return err
-	}
-	zb := utils.GzipBytes(buf.Bytes())
-
-	b0 := make([]byte, 0)
-	allb := bytes.NewBuffer(b0)
-
-	keyLen := int32(len(header))
-	binary.Write(allb, binary.BigEndian, &keyLen)
-	allb.Write(header)
-	allb.Write(zb)
-
 	// write to db file
 	fdb, err := os.Create(dbFile.Filename)
 	if err != nil {
@@ -43,13 +28,57 @@ func CreateDBFile(dbFile *DBFile) error {
 	}
 	defer fdb.Close()
 
-	n, err := fdb.Write(allb.Bytes())
-	if err != nil || n != allb.Len() {
-		log.WithFields(log.Fields{"error": err}).Error("Write file error")
+	bufw := bufio.NewWriterSize(fdb, 1024*1024)
+
+	keyLen := int32(len(header))
+	if err := binary.Write(bufw, binary.BigEndian, &keyLen); err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Write file header length error")
+		return err
+	}
+	if _, err := bufw.Write(header); err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Write file header error")
 		return err
 	}
 
-	log.WithFields(log.Fields{"file": dbFile.Filename, "size": allb.Len()}).Info("Create database done")
+	gzw := gzip.NewWriter(bufw)
+	tw := tar.NewWriter(gzw)
+	for _, file := range dbFile.Files {
+		hdr := &tar.Header{
+			Name:     file.Name,
+			Mode:     0655,
+			Typeflag: tar.TypeReg,
+			Size:     int64(len(file.Body)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			log.WithFields(log.Fields{"error": err, "entry": file.Name}).Error("Write tar header error")
+			return err
+		}
+		if _, err := tw.Write(file.Body); err != nil {
+			log.WithFields(log.Fields{"error": err, "entry": file.Name}).Error("Write tar body error")
+			return err
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Close tar writer error")
+		return err
+	}
+	if err := gzw.Close(); err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Close gzip writer error")
+		return err
+	}
+	if err := bufw.Flush(); err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Flush file error")
+		return err
+	}
+
+	stat, err := fdb.Stat()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err}).Error("Stat db file error")
+		return err
+	}
+
+	log.WithFields(log.Fields{"file": dbFile.Filename, "size": stat.Size()}).Info("Create database done")
 	return nil
 }
 
