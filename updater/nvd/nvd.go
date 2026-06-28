@@ -16,56 +16,115 @@ package nvd
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
-	"database/sql"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	_ "modernc.org/sqlite"
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/vul-dbgen/common"
 )
 
 const (
-	jsonUrl      = "https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%s.json.gz"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 
-	nvdAPIkey       = "NVD_KEY"
-	nvdSubfolder    = "nvd"
-	nvdDBName       = "nvd_metadata.db"
-	retryTimes      = 5
-	timeFormat      = "2006-01-02T15:04Z"
-	timeFormatNew   = "2006-01-02T15:04:05"
-	resultsPerPage  = 2000
-	batchCommitSize = 10000
+	nvdAPIkey      = "NVD_KEY"
+	nvdSubfolder   = "nvd"
+	nvdDBName      = "nvd_bbolt.db"
+	nvdBucketName  = "nvd"
+	retryTimes     = 5
+	timeFormat     = "2006-01-02T15:04Z"
+	timeFormatNew  = "2006-01-02T15:04:05"
+	resultsPerPage = 2000
+	batchSize      = 5000
 )
 
 type NVDMetadataFetcher struct {
-	nvdkey *string
+	nvdkey      *string
+	dbPath      string
+	db          *bolt.DB
+	batchWriter *batchWriter
+}
 
-	// SQLite state
-	dbPath string
-	db     *sql.DB
+// StoredNVDData is what we store in bbolt (includes everything)
+type StoredNVDData struct {
+	Description      string
+	Severity         common.Priority
+	CVSSv2           common.CVSS
+	CVSSv3           common.CVSS
+	PublishedDate    time.Time
+	LastModifiedDate time.Time
+	Link             string
+	VulnVersions     []common.NVDvulnerableVersion
+}
 
-	// Prepared statements
-	stmtInsertMeta    *sql.Stmt
-	stmtInsertVersion *sql.Stmt
-	stmtGetMeta       *sql.Stmt
-	stmtGetVersions   *sql.Stmt
+// batchWriter accumulates writes and flushes in batches for better performance
+type batchWriter struct {
+	batch map[string][]byte
+	mu    sync.Mutex
+	db    *bolt.DB
+	size  int
+}
 
-	// Transaction batching
-	txBatch    *sql.Tx
-	batchCount int
-	batchSize  int
+func newBatchWriter(db *bolt.DB) *batchWriter {
+	return &batchWriter{
+		batch: make(map[string][]byte, batchSize),
+		db:    db,
+		size:  0,
+	}
+}
+
+func (bw *batchWriter) add(key string, value []byte) error {
+	bw.mu.Lock()
+	defer bw.mu.Unlock()
+
+	bw.batch[key] = value
+	bw.size++
+
+	if bw.size >= batchSize {
+		return bw.flushLocked()
+	}
+	return nil
+}
+
+func (bw *batchWriter) flushLocked() error {
+	if len(bw.batch) == 0 {
+		return nil
+	}
+
+	err := bw.db.Batch(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(nvdBucketName))
+		for k, v := range bw.batch {
+			if err := b.Put([]byte(k), v); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err == nil {
+		bw.batch = make(map[string][]byte, batchSize)
+		bw.size = 0
+	}
+
+	return err
+}
+
+func (bw *batchWriter) flush() error {
+	bw.mu.Lock()
+	defer bw.mu.Unlock()
+	return bw.flushLocked()
 }
 
 type NvdCve struct {
@@ -148,157 +207,36 @@ type CvssData struct {
 var NVD NVDMetadataFetcher
 
 func (fetcher *NVDMetadataFetcher) initDB() error {
-	// Determine tmpPath from environment or use system temp
 	tmpDir := os.Getenv("NVD_TMP_PATH")
 	if tmpDir == "" {
 		tmpDir = os.TempDir()
 	}
 
 	fetcher.dbPath = filepath.Join(tmpDir, nvdDBName)
-	fetcher.batchSize = batchCommitSize
-
-	// Remove stale database
 	os.Remove(fetcher.dbPath)
-	os.Remove(fetcher.dbPath + "-wal")
-	os.Remove(fetcher.dbPath + "-shm")
 
-	// Open with optimized DSN
-	dsn := fmt.Sprintf("file:%s?cache=shared&mode=rwc", fetcher.dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := bolt.Open(fetcher.dbPath, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return fmt.Errorf("failed to open SQLite: %w", err)
-	}
-
-	// Performance tuning pragmas
-	pragmas := []string{
-		"PRAGMA journal_mode = WAL",
-		"PRAGMA synchronous = NORMAL",
-		"PRAGMA cache_size = -64000",
-		"PRAGMA temp_store = MEMORY",
-		"PRAGMA mmap_size = 268435456",
-	}
-
-	for _, pragma := range pragmas {
-		if _, err := db.Exec(pragma); err != nil {
-			db.Close()
-			return fmt.Errorf("pragma failed: %w", err)
-		}
+		return fmt.Errorf("failed to open bbolt: %w", err)
 	}
 
 	fetcher.db = db
-	return fetcher.createSchema()
-}
 
-func (fetcher *NVDMetadataFetcher) createSchema() error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS nvd_metadata (
-		cve_id TEXT PRIMARY KEY NOT NULL,
-		description TEXT NOT NULL DEFAULT '',
-		severity TEXT NOT NULL DEFAULT '',
-		cvss_v2_vectors TEXT NOT NULL DEFAULT '',
-		cvss_v2_score REAL NOT NULL DEFAULT 0.0,
-		cvss_v3_vectors TEXT NOT NULL DEFAULT '',
-		cvss_v3_score REAL NOT NULL DEFAULT 0.0,
-		published_date TEXT NOT NULL DEFAULT '',
-		last_modified_date TEXT NOT NULL DEFAULT '',
-		link TEXT NOT NULL DEFAULT ''
-	) STRICT;
+	// Create bucket
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(nvdBucketName))
+		return err
+	})
 
-	CREATE INDEX IF NOT EXISTS idx_cve_id ON nvd_metadata(cve_id);
-
-	CREATE TABLE IF NOT EXISTS nvd_vuln_versions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		cve_id TEXT NOT NULL,
-		start_including TEXT NOT NULL DEFAULT '',
-		start_excluding TEXT NOT NULL DEFAULT '',
-		end_including TEXT NOT NULL DEFAULT '',
-		end_excluding TEXT NOT NULL DEFAULT '',
-		FOREIGN KEY (cve_id) REFERENCES nvd_metadata(cve_id) ON DELETE CASCADE
-	) STRICT;
-
-	CREATE INDEX IF NOT EXISTS idx_vuln_versions_cve ON nvd_vuln_versions(cve_id);
-	`
-
-	_, err := fetcher.db.Exec(schema)
-	return err
-}
-
-func (fetcher *NVDMetadataFetcher) prepareStatements() error {
-	var err error
-
-	// Insert prepared statements
-	fetcher.stmtInsertMeta, err = fetcher.db.Prepare(`
-		INSERT OR REPLACE INTO nvd_metadata
-		(cve_id, description, severity, cvss_v2_vectors, cvss_v2_score,
-		 cvss_v3_vectors, cvss_v3_score, published_date, last_modified_date, link)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`)
 	if err != nil {
-		return err
+		db.Close()
+		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 
-	fetcher.stmtInsertVersion, err = fetcher.db.Prepare(`
-		INSERT INTO nvd_vuln_versions
-		(cve_id, start_including, start_excluding, end_including, end_excluding)
-		VALUES (?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
+	// Initialize batch writer
+	fetcher.batchWriter = newBatchWriter(db)
 
-	// Query prepared statements
-	fetcher.stmtGetMeta, err = fetcher.db.Prepare(`
-		SELECT description, severity, cvss_v2_vectors, cvss_v2_score,
-		       cvss_v3_vectors, cvss_v3_score, published_date, last_modified_date, link
-		FROM nvd_metadata WHERE cve_id = ?
-	`)
-	if err != nil {
-		return err
-	}
-
-	fetcher.stmtGetVersions, err = fetcher.db.Prepare(`
-		SELECT start_including, start_excluding, end_including, end_excluding
-		FROM nvd_vuln_versions WHERE cve_id = ?
-		ORDER BY id
-	`)
-
-	return err
-}
-
-func (fetcher *NVDMetadataFetcher) beginBatch() error {
-	tx, err := fetcher.db.Begin()
-	if err != nil {
-		return err
-	}
-	fetcher.txBatch = tx
-	fetcher.batchCount = 0
-	return nil
-}
-
-func (fetcher *NVDMetadataFetcher) commitBatch() error {
-	if fetcher.txBatch == nil {
-		return nil
-	}
-
-	if err := fetcher.txBatch.Commit(); err != nil {
-		return err
-	}
-
-	log.WithFields(log.Fields{"count": fetcher.batchCount}).Debug("Committed NVD batch")
-	fetcher.txBatch = nil
-	fetcher.batchCount = 0
-	return nil
-}
-
-func (fetcher *NVDMetadataFetcher) checkBatchCommit() error {
-	fetcher.batchCount++
-
-	if fetcher.batchCount >= fetcher.batchSize {
-		if err := fetcher.commitBatch(); err != nil {
-			return err
-		}
-		return fetcher.beginBatch()
-	}
+	log.WithField("path", fetcher.dbPath).Info("Initialized NVD bbolt database")
 	return nil
 }
 
@@ -393,21 +331,9 @@ func (fetcher *NVDMetadataFetcher) loadRemote() (*NvdData, error) {
 }
 
 func (fetcher *NVDMetadataFetcher) Load() error {
-	// Initialize SQLite database
+	// Initialize bbolt database
 	if err := fetcher.initDB(); err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("Failed to initialize NVD database")
-		return common.ErrCouldNotDownload
-	}
-
-	// Prepare statements
-	if err := fetcher.prepareStatements(); err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("Failed to prepare NVD statements")
-		return common.ErrCouldNotDownload
-	}
-
-	// Start initial transaction
-	if err := fetcher.beginBatch(); err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("Failed to begin NVD batch")
 		return common.ErrCouldNotDownload
 	}
 
@@ -420,11 +346,14 @@ func (fetcher *NVDMetadataFetcher) Load() error {
 		_, err = fetcher.loadRemote()
 	}
 
-	// Commit final batch
-	commitErr := fetcher.commitBatch()
+	// Flush any remaining batched writes
+	var flushErr error
+	if fetcher.batchWriter != nil {
+		flushErr = fetcher.batchWriter.flush()
+	}
 
-	if err != nil || commitErr != nil {
-		log.WithFields(log.Fields{"loadErr": err, "commitErr": commitErr}).Error("NVD load failed")
+	if err != nil || flushErr != nil {
+		log.WithFields(log.Fields{"loadErr": err, "flushErr": flushErr}).Error("NVD load failed")
 		return common.ErrCouldNotDownload
 	}
 
@@ -461,7 +390,7 @@ func findPreDownloadFiles(folder string) ([]string, error) {
 		}
 	}
 
-	files, err := ioutil.ReadDir(folder)
+	files, err := os.ReadDir(folder)
 	if err != nil {
 		return nil, err
 	}
@@ -622,53 +551,26 @@ func (fetcher *NVDMetadataFetcher) storeMetadata(cve NvdCve) error {
 		}).Debug("DEBUG")
 	}
 
-	// SQLite insertion logic
-	// Use transaction context
-	stmt := fetcher.stmtInsertMeta
-	if fetcher.txBatch != nil {
-		stmt = fetcher.txBatch.Stmt(stmt)
+	// Store in bbolt using gob
+	data := StoredNVDData{
+		Description:      meta.Description,
+		Severity:         meta.Severity,
+		CVSSv2:           meta.CVSSv2,
+		CVSSv3:           meta.CVSSv3,
+		PublishedDate:    meta.PublishedDate,
+		LastModifiedDate: meta.LastModifiedDate,
+		Link:             meta.Link,
+		VulnVersions:     meta.VulnVersions,
 	}
 
-	// Insert metadata row
-	_, err := stmt.Exec(
-		cve.Cve.ID,
-		meta.Description,
-		string(meta.Severity),
-		meta.CVSSv2.Vectors,
-		meta.CVSSv2.Score,
-		meta.CVSSv3.Vectors,
-		meta.CVSSv3.Score,
-		meta.PublishedDate.Format(time.RFC3339),
-		meta.LastModifiedDate.Format(time.RFC3339),
-		meta.Link,
-	)
-	if err != nil {
-		log.WithFields(log.Fields{"cve": cve.Cve.ID, "error": err}).Error("Failed to insert NVD metadata")
-		return err
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(&data); err != nil {
+		return fmt.Errorf("gob encode failed: %w", err)
 	}
 
-	// Insert version constraints
-	stmtVer := fetcher.stmtInsertVersion
-	if fetcher.txBatch != nil {
-		stmtVer = fetcher.txBatch.Stmt(stmtVer)
-	}
-
-	for _, v := range meta.VulnVersions {
-		_, err := stmtVer.Exec(
-			cve.Cve.ID,
-			v.StartIncluding,
-			v.StartExcluding,
-			v.EndIncluding,
-			v.EndExcluding,
-		)
-		if err != nil {
-			log.WithFields(log.Fields{"cve": cve.Cve.ID, "error": err}).Error("Failed to insert NVD version")
-			return err
-		}
-	}
-
-	// Check if batch should commit
-	return fetcher.checkBatchCommit()
+	// Use batch writer for better performance
+	return fetcher.batchWriter.add(cve.Cve.ID, buf.Bytes())
 }
 
 func (fetcher *NVDMetadataFetcher) toSeverity(s string) common.Priority {
@@ -688,42 +590,31 @@ func (fetcher *NVDMetadataFetcher) toSeverity(s string) common.Priority {
 }
 
 func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata, bool) {
-	var meta common.NVDMetadata
-	var severityStr, publishedStr, modifiedStr string
+	var stored StoredNVDData
 
-	err := fetcher.stmtGetMeta.QueryRow(cve).Scan(
-		&meta.Description,
-		&severityStr,
-		&meta.CVSSv2.Vectors,
-		&meta.CVSSv2.Score,
-		&meta.CVSSv3.Vectors,
-		&meta.CVSSv3.Score,
-		&publishedStr,
-		&modifiedStr,
-		&meta.Link,
-	)
+	err := fetcher.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(nvdBucketName))
+		data := b.Get([]byte(cve))
+		if data == nil {
+			return fmt.Errorf("not found")
+		}
 
-	if err == sql.ErrNoRows {
-		return nil, false
-	}
+		dec := gob.NewDecoder(bytes.NewReader(data))
+		return dec.Decode(&stored)
+	})
+
 	if err != nil {
-		log.WithFields(log.Fields{"cve": cve, "error": err}).Error("Failed to query NVD metadata")
 		return nil, false
 	}
 
-	// Parse severity
-	meta.Severity = common.Priority(severityStr)
-
-	// Parse timestamps
-	if publishedStr != "" {
-		if t, err := time.Parse(time.RFC3339, publishedStr); err == nil {
-			meta.PublishedDate = t
-		}
-	}
-	if modifiedStr != "" {
-		if t, err := time.Parse(time.RFC3339, modifiedStr); err == nil {
-			meta.LastModifiedDate = t
-		}
+	meta := &common.NVDMetadata{
+		Description:      stored.Description,
+		Severity:         stored.Severity,
+		CVSSv2:           stored.CVSSv2,
+		CVSSv3:           stored.CVSSv3,
+		PublishedDate:    stored.PublishedDate,
+		LastModifiedDate: stored.LastModifiedDate,
+		Link:             stored.Link,
 	}
 
 	// Fallback to web scraping if description empty
@@ -731,33 +622,34 @@ func (fetcher *NVDMetadataFetcher) GetMetadata(cve string) (*common.NVDMetadata,
 		meta.Description = getCveDescription(cve)
 	}
 
-	return &meta, true
+	return meta, true
 }
 
 // Return affected version and fixed version
 func (fetcher *NVDMetadataFetcher) GetAffectedVersion(name string) ([]string, []string, bool) {
-	rows, err := fetcher.stmtGetVersions.Query(name)
+	var stored StoredNVDData
+
+	err := fetcher.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(nvdBucketName))
+		data := b.Get([]byte(name))
+		if data == nil {
+			return fmt.Errorf("not found")
+		}
+
+		dec := gob.NewDecoder(bytes.NewReader(data))
+		return dec.Decode(&stored)
+	})
+
 	if err != nil {
-		log.WithFields(log.Fields{"cve": name, "error": err}).Error("Failed to query NVD versions")
 		return nil, nil, false
 	}
-	defer rows.Close()
 
 	affects := make([]string, 0)
 	fixes := make([]string, 0)
 	opAffect := ""
 	opFix := ""
-	found := false
 
-	for rows.Next() {
-		found = true
-		var v common.NVDvulnerableVersion
-
-		if err := rows.Scan(&v.StartIncluding, &v.StartExcluding, &v.EndIncluding, &v.EndExcluding); err != nil {
-			log.WithFields(log.Fields{"cve": name, "error": err}).Error("Failed to scan NVD version")
-			continue
-		}
-
+	for _, v := range stored.VulnVersions {
 		if v.StartIncluding != "" {
 			affects = append(affects, fmt.Sprintf("%s>=%s", opAffect, v.StartIncluding))
 			opAffect = ""
@@ -776,56 +668,27 @@ func (fetcher *NVDMetadataFetcher) GetAffectedVersion(name string) ([]string, []
 		opFix = "||"
 	}
 
-	if err := rows.Err(); err != nil {
-		log.WithFields(log.Fields{"cve": name, "error": err}).Error("NVD row iteration error")
-	}
-
-	return affects, fixes, found
+	return affects, fixes, len(stored.VulnVersions) > 0
 }
 
 func (fetcher *NVDMetadataFetcher) Unload() {
-	// Close prepared statements
-	if fetcher.stmtInsertMeta != nil {
-		fetcher.stmtInsertMeta.Close()
-		fetcher.stmtInsertMeta = nil
-	}
-	if fetcher.stmtInsertVersion != nil {
-		fetcher.stmtInsertVersion.Close()
-		fetcher.stmtInsertVersion = nil
-	}
-	if fetcher.stmtGetMeta != nil {
-		fetcher.stmtGetMeta.Close()
-		fetcher.stmtGetMeta = nil
-	}
-	if fetcher.stmtGetVersions != nil {
-		fetcher.stmtGetVersions.Close()
-		fetcher.stmtGetVersions = nil
-	}
+	// Clear batch writer
+	fetcher.batchWriter = nil
 
-	// Close database connection
 	if fetcher.db != nil {
-		if err := fetcher.db.Close(); err != nil {
-			log.WithFields(log.Fields{"error": err}).Error("Failed to close NVD database")
-		}
+		fetcher.db.Close()
 		fetcher.db = nil
 	}
 
-	// Delete temporary database files
 	if fetcher.dbPath != "" {
-		if err := os.Remove(fetcher.dbPath); err != nil && !os.IsNotExist(err) {
-			log.WithFields(log.Fields{"path": fetcher.dbPath, "error": err}).Warn("Failed to remove NVD database")
-		}
-		// Remove WAL files
-		os.Remove(fetcher.dbPath + "-wal")
-		os.Remove(fetcher.dbPath + "-shm")
-
-		log.WithFields(log.Fields{"path": fetcher.dbPath}).Info("Cleaned up NVD database")
+		os.Remove(fetcher.dbPath)
+		log.WithField("path", fetcher.dbPath).Info("Cleaned up NVD bbolt database")
 		fetcher.dbPath = ""
 	}
 }
 
 func (fetcher *NVDMetadataFetcher) Clean() {
-	// No-op: SQLite cleanup is handled by Unload()
+	// No-op: cleanup is handled by Unload()
 }
 
 func getCveDescription(cve string) string {

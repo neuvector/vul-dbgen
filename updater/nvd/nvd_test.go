@@ -60,7 +60,7 @@ func TestStreamVulnerabilities(t *testing.T) {
 		t.Fatalf("expected 1 vulnerability, got %d", len(got))
 	}
 
-	// Setup SQLite database for testing
+	// Setup bbolt database for testing
 	tmpDir := t.TempDir()
 	os.Setenv("NVD_TMP_PATH", tmpDir)
 	defer os.Unsetenv("NVD_TMP_PATH")
@@ -71,20 +71,13 @@ func TestStreamVulnerabilities(t *testing.T) {
 	}
 	defer fetcher.Unload()
 
-	if err := fetcher.prepareStatements(); err != nil {
-		t.Fatalf("prepareStatements failed: %v", err)
-	}
-
-	if err := fetcher.beginBatch(); err != nil {
-		t.Fatalf("beginBatch failed: %v", err)
-	}
-
 	if err := fetcher.storeMetadata(got[0]); err != nil {
 		t.Fatalf("storeMetadata failed: %v", err)
 	}
 
-	if err := fetcher.commitBatch(); err != nil {
-		t.Fatalf("commitBatch failed: %v", err)
+	// Flush batch
+	if err := fetcher.batchWriter.flush(); err != nil {
+		t.Fatalf("flush failed: %v", err)
 	}
 
 	// Query back the metadata
