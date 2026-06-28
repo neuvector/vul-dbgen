@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strconv"
@@ -43,6 +45,9 @@ func main() {
 	version := flag.String("v", "0.90", "cve database version")
 	dbPath := flag.String("d", "", "cve database path")
 	debug := flag.String("debug", "", "debug filters. -debug v=CVE-2023-1000")
+	memStats := flag.Bool("memstats", false, "log runtime memory stats at major phases")
+	pprofAddr := flag.String("pprof", "", "listen address for net/http/pprof, e.g. :6060")
+	heapProfile := flag.String("heap-profile", "", "write heap profile to file on successful completion")
 	flag.Usage = usage
 	flag.Parse()
 
@@ -54,6 +59,17 @@ func main() {
 
 	if *debug != "" {
 		common.ParseDebugFilters(*debug)
+	}
+	common.SetMemStatsEnabled(*memStats)
+	common.LogMemStats("startup")
+
+	if *pprofAddr != "" {
+		go func() {
+			log.WithField("addr", *pprofAddr).Info("Starting pprof server")
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				log.WithFields(log.Fields{"addr": *pprofAddr, "error": err}).Error("pprof server stopped")
+			}
+		}()
 	}
 
 	done := make(chan bool, 1)
@@ -81,6 +97,15 @@ func main() {
 	}()
 
 	<-done
+	common.LogMemStats("shutdown")
+
+	if *heapProfile != "" {
+		if err := common.WriteHeapProfile(*heapProfile); err != nil {
+			log.WithFields(log.Fields{"error": err, "file": *heapProfile}).Error("Failed to write heap profile")
+			os.Exit(2)
+		}
+		log.WithField("file", *heapProfile).Info("Wrote heap profile")
+	}
 
 	log.Info("Update CVE database successfully")
 }

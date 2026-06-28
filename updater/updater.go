@@ -554,24 +554,28 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 // fetch get data from the registered fetchers, in parallel.
 func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppModuleVul, []*common.RawFile) {
 	status := true
+	common.LogMemStats("fetch-start")
 
 	status, osVuls := fetchDistroVul()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("distroVuls", len(osVuls)).Info("Fetched distro vulnerabilities")
+	common.LogMemStats("after-fetch-distro")
 
 	status, rawFiles := fetchRawData()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("rawFiles", len(rawFiles)).Info("Fetched raw vulnerability files")
+	common.LogMemStats("after-fetch-raw")
 
 	status, appVuls := fetchAppVul()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("appVuls", len(appVuls)).Info("Fetched app vulnerabilities")
+	common.LogMemStats("after-fetch-app")
 
 	log.Info("Start loading NVD metadata")
 	if err := nvd.NVD.Load(); err != nil {
@@ -579,16 +583,23 @@ func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppMod
 		return false, nil, nil, nil
 	}
 	log.Info("Finished loading NVD metadata")
+	common.LogMemStats("after-load-nvd")
 
 	appVuls = injectNvdWhitelistApps(appVuls)
 	log.WithField("appVuls", len(appVuls)).Info("Injected NVD whitelist apps")
 	correctAppAffectedVersion(appVuls)
+	common.LogMemStats("after-correct-app")
 
 	vuls, apps := assignMetadata(osVuls, appVuls)
 	log.WithFields(log.Fields{
 		"distroVuls": len(vuls),
 		"appVuls":    len(apps),
 	}).Info("Fetch pipeline complete")
+	common.LogMemStats("after-assign-metadata")
+
+	// Cleanup NVD SQLite database
+	nvd.NVD.Unload()
+	common.LogMemStats("after-nvd-unload")
 
 	return status, vuls, apps, rawFiles
 }

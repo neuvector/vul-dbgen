@@ -193,6 +193,7 @@ func (db *memDB) UpdateDb(version string) bool {
 		log.Error("Split database error")
 		return false
 	}
+	common.LogMemStats("after-split-db")
 
 	log.WithFields(log.Fields{"vuls": len(db.osVuls), "appVuls": len(db.appVuls)}).Info()
 
@@ -269,6 +270,7 @@ func (db *memDB) UpdateDb(version string) bool {
 	for _, dbf := range []*common.DBFile{&compactDB, &regularDB} {
 		common.CreateDBFile(dbf)
 	}
+	common.LogMemStats("after-write-db")
 
 	return true
 }
