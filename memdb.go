@@ -3,34 +3,70 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/vul-dbgen/common"
 	utils "github.com/vul-dbgen/share"
 )
 
 type memDB struct {
-	keyVer   common.KeyVersion
-	tbPath   string
-	tmpPath  string
-	osVuls   map[string]*common.VulFull
-	appVuls  []*common.AppModuleVul
-	rawFiles []*common.RawFile
+	keyVer      common.KeyVersion
+	tbPath      string
+	tmpPath     string
+	storePath   string
+	store       *bolt.DB
+	osVulCount  int
+	appVulCount int
+	rawFiles    []*common.RawFile
 }
 
 func newMemDb(path string) (*memDB, error) {
 	var db memDB
-	db.osVuls = make(map[string]*common.VulFull, 0)
 	db.keyVer.Keys = make(map[string]string, 0)
 	db.keyVer.Shas = make(map[string]string, 0)
 	return &db, nil
+}
+
+const (
+	memDBStoreName    = "memdb.bolt"
+	memDBOSVulBucket  = "os_vuls"
+	memDBAppVulBucket = "app_vuls"
+)
+
+func (db *memDB) initStore() error {
+	db.storePath = filepath.Join(db.tmpPath, memDBStoreName)
+
+	store, err := bolt.Open(db.storePath, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return err
+	}
+
+	err = store.Update(func(tx *bolt.Tx) error {
+		if _, err := tx.CreateBucketIfNotExists([]byte(memDBOSVulBucket)); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte(memDBAppVulBucket)); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		_ = store.Close()
+		return err
+	}
+
+	db.store = store
+	return nil
 }
 
 func vulToShort(v *common.VulFull) *common.VulShort {
@@ -80,33 +116,68 @@ func modFeaToFeaFull(fx common.FeatureVersion) common.FeaFull {
 }
 
 func splitDb(db *memDB, dbs *dbSpace) bool {
-	if db.osVuls == nil {
+	if db.store == nil {
 		return false
 	}
 
-	for _, v := range db.osVuls {
-		var buf *dbBuffer
-		for i := 0; i < dbMax; i++ {
-			if strings.Contains(v.Namespace, dbs.buffers[i].namespace) {
-				buf = &dbs.buffers[i]
-				break
+	err := db.store.View(func(tx *bolt.Tx) error {
+		osBucket := tx.Bucket([]byte(memDBOSVulBucket))
+		if osBucket == nil {
+			return fmt.Errorf("missing bucket %s", memDBOSVulBucket)
+		}
+
+		if err := osBucket.ForEach(func(_, value []byte) error {
+			var v common.VulFull
+			if err := json.Unmarshal(value, &v); err != nil {
+				return err
 			}
+
+			buf := findDBBuffer(dbs, v.Namespace)
+			if buf == nil {
+				return fmt.Errorf("no known namespace found: %s", v.Namespace)
+			}
+
+			vs := vulToShort(&v)
+			b, err := json.Marshal(vs)
+			if err == nil {
+				if _, err := buf.indexBuf.Write(b); err != nil {
+					return err
+				}
+				if err := buf.indexBuf.WriteByte('\n'); err != nil {
+					return err
+				}
+			}
+
+			b, err = json.Marshal(&v)
+			if err == nil {
+				if _, err := buf.fullBuf.Write(b); err != nil {
+					return err
+				}
+				if err := buf.fullBuf.WriteByte('\n'); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}); err != nil {
+			return err
 		}
 
-		if buf == nil {
-			log.Error("No known namespace found:", v.Namespace)
-			return false
+		appBucket := tx.Bucket([]byte(memDBAppVulBucket))
+		if appBucket == nil {
+			return fmt.Errorf("missing bucket %s", memDBAppVulBucket)
 		}
 
-		vs := vulToShort(v)
-		b, err := json.Marshal(vs)
-		if err == nil {
-			buf.indexBuf.WriteString(fmt.Sprintf("%s\n", b))
-		}
-		b, err = json.Marshal(v)
-		if err == nil {
-			buf.fullBuf.WriteString(fmt.Sprintf("%s\n", b))
-		}
+		return appBucket.ForEach(func(_, value []byte) error {
+			if _, err := dbs.appBuf.Write(value); err != nil {
+				return err
+			}
+			return dbs.appBuf.WriteByte('\n')
+		})
+	})
+	if err != nil {
+		log.WithError(err).Error("Split database error")
+		return false
 	}
 
 	for i := 0; i < dbMax; i++ {
@@ -115,11 +186,6 @@ func splitDb(db *memDB, dbs *dbSpace) bool {
 		buf.fullSHA = sha256.Sum256(buf.fullBuf.Bytes())
 	}
 
-	for _, v := range db.appVuls {
-		if b, err := json.Marshal(&v); err == nil {
-			dbs.appBuf.WriteString(fmt.Sprintf("%s\n", b))
-		}
-	}
 	dbs.appSHA = sha256.Sum256(dbs.appBuf.Bytes())
 
 	for i, v := range db.rawFiles {
@@ -127,6 +193,15 @@ func splitDb(db *memDB, dbs *dbSpace) bool {
 	}
 
 	return true
+}
+
+func findDBBuffer(dbs *dbSpace, namespace string) *dbBuffer {
+	for i := 0; i < dbMax; i++ {
+		if strings.Contains(namespace, dbs.buffers[i].namespace) {
+			return &dbs.buffers[i]
+		}
+	}
+	return nil
 }
 
 var rawFilenames []string = []string{
@@ -195,7 +270,7 @@ func (db *memDB) UpdateDb(version string) bool {
 	}
 	common.LogMemStats("after-split-db")
 
-	log.WithFields(log.Fields{"vuls": len(db.osVuls), "appVuls": len(db.appVuls)}).Info()
+	log.WithFields(log.Fields{"vuls": db.osVulCount, "appVuls": db.appVulCount}).Info()
 
 	var compactDB common.DBFile
 	var regularDB common.DBFile
@@ -284,20 +359,62 @@ func memdbOpen(path string) (*memDB, error) {
 	db, dbErr := newMemDb(path)
 	db.tbPath = path
 	db.tmpPath = dir
+	if dbErr == nil {
+		dbErr = db.initStore()
+	}
 	return db, dbErr
 }
 
 func (db *memDB) InsertVulnerabilities(osVuls []*common.Vulnerability, appVuls []*common.AppModuleVul, rawFiles []*common.RawFile) error {
-	for _, v := range osVuls {
-		vv1 := modVulToVulFull(v)
-		for _, fx := range v.FixedIn {
-			v1fx := modFeaToFeaFull(fx)
-			vv1.FixedIn = append(vv1.FixedIn, v1fx)
-		}
-		cveName := fmt.Sprintf("%s:%s", vv1.Namespace, vv1.Name)
-		db.osVuls[cveName] = vv1
+	if db.store == nil {
+		return fmt.Errorf("memdb store is not initialized")
 	}
-	db.appVuls = appVuls
+
+	err := db.store.Update(func(tx *bolt.Tx) error {
+		osBucket := tx.Bucket([]byte(memDBOSVulBucket))
+		appBucket := tx.Bucket([]byte(memDBAppVulBucket))
+		if osBucket == nil || appBucket == nil {
+			return fmt.Errorf("memdb buckets not initialized")
+		}
+
+		for _, v := range osVuls {
+			vv1 := modVulToVulFull(v)
+			for _, fx := range v.FixedIn {
+				v1fx := modFeaToFeaFull(fx)
+				vv1.FixedIn = append(vv1.FixedIn, v1fx)
+			}
+			cveName := fmt.Sprintf("%s:%s", vv1.Namespace, vv1.Name)
+
+			payload, err := json.Marshal(vv1)
+			if err != nil {
+				return err
+			}
+			if err := osBucket.Put([]byte(cveName), payload); err != nil {
+				return err
+			}
+		}
+
+		for i, appVul := range appVuls {
+			payload, err := json.Marshal(appVul)
+			if err != nil {
+				return err
+			}
+
+			key := make([]byte, 8)
+			binary.BigEndian.PutUint64(key, uint64(i))
+			if err := appBucket.Put(key, payload); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	db.osVulCount = len(osVuls)
+	db.appVulCount = len(appVuls)
 
 	db.rawFiles = rawFiles
 	// If a raw file is missing, add an empty file
@@ -318,5 +435,8 @@ func (db *memDB) InsertVulnerabilities(osVuls []*common.Vulnerability, appVuls [
 }
 
 func (db *memDB) Close() {
+	if db.store != nil {
+		_ = db.store.Close()
+	}
 	os.RemoveAll(db.tmpPath)
 }
