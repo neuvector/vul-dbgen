@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	utils "github.com/vul-dbgen/share"
 )
 
 func TestCreateDBFile(t *testing.T) {
@@ -27,7 +25,7 @@ func TestCreateDBFile(t *testing.T) {
 			"apps.tb":        "sha2",
 		},
 	}
-	wantFiles := []utils.TarFileInfo{
+	wantFiles := []DBFileEntry{
 		{Name: "ubuntu_full.tb", Body: []byte("ubuntu-data")},
 		{Name: "apps.tb", Body: []byte("apps-data")},
 	}

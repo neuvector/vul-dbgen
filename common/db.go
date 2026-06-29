@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 	"os"
 	"strconv"
 	"unicode"
@@ -43,16 +44,45 @@ func CreateDBFile(dbFile *DBFile) error {
 	gzw := gzip.NewWriter(bufw)
 	tw := tar.NewWriter(gzw)
 	for _, file := range dbFile.Files {
+		size := int64(len(file.Body))
+		if file.Path != "" {
+			stat, err := os.Stat(file.Path)
+			if err != nil {
+				log.WithFields(log.Fields{"error": err, "entry": file.Name, "path": file.Path}).Error("Stat tar source error")
+				return err
+			}
+			size = stat.Size()
+		}
+
 		hdr := &tar.Header{
 			Name:     file.Name,
 			Mode:     0655,
 			Typeflag: tar.TypeReg,
-			Size:     int64(len(file.Body)),
+			Size:     size,
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
 			log.WithFields(log.Fields{"error": err, "entry": file.Name}).Error("Write tar header error")
 			return err
 		}
+
+		if file.Path != "" {
+			src, err := os.Open(file.Path)
+			if err != nil {
+				log.WithFields(log.Fields{"error": err, "entry": file.Name, "path": file.Path}).Error("Open tar source error")
+				return err
+			}
+			if _, err := io.Copy(tw, src); err != nil {
+				_ = src.Close()
+				log.WithFields(log.Fields{"error": err, "entry": file.Name, "path": file.Path}).Error("Copy tar body error")
+				return err
+			}
+			if err := src.Close(); err != nil {
+				log.WithFields(log.Fields{"error": err, "entry": file.Name, "path": file.Path}).Error("Close tar source error")
+				return err
+			}
+			continue
+		}
+
 		if _, err := tw.Write(file.Body); err != nil {
 			log.WithFields(log.Fields{"error": err, "entry": file.Name}).Error("Write tar body error")
 			return err

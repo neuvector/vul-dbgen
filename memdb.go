@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/vul-dbgen/common"
-	utils "github.com/vul-dbgen/share"
 )
 
 type memDB struct {
@@ -140,20 +140,14 @@ func splitDb(db *memDB, dbs *dbSpace) bool {
 			vs := vulToShort(&v)
 			b, err := json.Marshal(vs)
 			if err == nil {
-				if _, err := buf.indexBuf.Write(b); err != nil {
-					return err
-				}
-				if err := buf.indexBuf.WriteByte('\n'); err != nil {
+				if err := buf.indexData.WriteLine(b); err != nil {
 					return err
 				}
 			}
 
 			b, err = json.Marshal(&v)
 			if err == nil {
-				if _, err := buf.fullBuf.Write(b); err != nil {
-					return err
-				}
-				if err := buf.fullBuf.WriteByte('\n'); err != nil {
+				if err := buf.fullData.WriteLine(b); err != nil {
 					return err
 				}
 			}
@@ -169,10 +163,7 @@ func splitDb(db *memDB, dbs *dbSpace) bool {
 		}
 
 		return appBucket.ForEach(func(_, value []byte) error {
-			if _, err := dbs.appBuf.Write(value); err != nil {
-				return err
-			}
-			return dbs.appBuf.WriteByte('\n')
+			return dbs.appData.WriteLine(value)
 		})
 	})
 	if err != nil {
@@ -182,11 +173,27 @@ func splitDb(db *memDB, dbs *dbSpace) bool {
 
 	for i := 0; i < dbMax; i++ {
 		buf := &dbs.buffers[i]
-		buf.indexSHA = sha256.Sum256(buf.indexBuf.Bytes())
-		buf.fullSHA = sha256.Sum256(buf.fullBuf.Bytes())
+		sum, err := buf.indexData.Close()
+		if err != nil {
+			log.WithFields(log.Fields{"error": err, "file": buf.indexData.path}).Error("Close staged index file error")
+			return false
+		}
+		buf.indexSHA = sum
+
+		sum, err = buf.fullData.Close()
+		if err != nil {
+			log.WithFields(log.Fields{"error": err, "file": buf.fullData.path}).Error("Close staged full file error")
+			return false
+		}
+		buf.fullSHA = sum
 	}
 
-	dbs.appSHA = sha256.Sum256(dbs.appBuf.Bytes())
+	sum, err := dbs.appData.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err, "file": dbs.appData.path}).Error("Close staged app file error")
+		return false
+	}
+	dbs.appSHA = sum
 
 	for i, v := range db.rawFiles {
 		dbs.rawSHA[i] = sha256.Sum256(v.Raw)
@@ -228,17 +235,77 @@ type dbBuffer struct {
 	namespace string
 	indexFile string
 	fullFile  string
-	indexBuf  bytes.Buffer
-	fullBuf   bytes.Buffer
+	indexData stagedFile
+	fullData  stagedFile
 	indexSHA  [sha256.Size]byte
 	fullSHA   [sha256.Size]byte
 }
 
 type dbSpace struct {
 	buffers [dbMax]dbBuffer
-	appBuf  bytes.Buffer
+	appData stagedFile
 	appSHA  [sha256.Size]byte
 	rawSHA  [][sha256.Size]byte
+}
+
+type stagedFile struct {
+	path   string
+	file   *os.File
+	writer *bufio.Writer
+	hasher hash.Hash
+	size   int64
+}
+
+func newStagedFile(dir, name string) (stagedFile, error) {
+	path := filepath.Join(dir, name)
+	file, err := os.Create(path)
+	if err != nil {
+		return stagedFile{}, err
+	}
+
+	return stagedFile{
+		path:   path,
+		file:   file,
+		writer: bufio.NewWriterSize(file, 1024*1024),
+		hasher: sha256.New(),
+	}, nil
+}
+
+func (sf *stagedFile) WriteLine(body []byte) error {
+	n, err := sf.writer.Write(body)
+	if err != nil {
+		return err
+	}
+	if _, err := sf.hasher.Write(body[:n]); err != nil {
+		return err
+	}
+	sf.size += int64(n)
+
+	if err := sf.writer.WriteByte('\n'); err != nil {
+		return err
+	}
+	if _, err := sf.hasher.Write([]byte{'\n'}); err != nil {
+		return err
+	}
+	sf.size++
+	return nil
+}
+
+func (sf *stagedFile) Close() ([sha256.Size]byte, error) {
+	var sum [sha256.Size]byte
+	if sf.writer != nil {
+		if err := sf.writer.Flush(); err != nil {
+			return sum, err
+		}
+	}
+	if sf.file != nil {
+		if err := sf.file.Close(); err != nil {
+			return sum, err
+		}
+		sf.file = nil
+	}
+	copy(sum[:], sf.hasher.Sum(nil))
+	return sum, nil
 }
 
 func (db *memDB) UpdateDb(version string) bool {
@@ -260,6 +327,28 @@ func (db *memDB) UpdateDb(version string) bool {
 	dbs.buffers[dbRocky] = dbBuffer{namespace: "rocky", indexFile: "rocky_index.tb", fullFile: "rocky_full.tb"}
 	dbs.buffers[dbWolfi] = dbBuffer{namespace: "wolfi", indexFile: "wolfi_index.tb", fullFile: "wolfi_full.tb"}
 	dbs.buffers[dbChainguard] = dbBuffer{namespace: "chainguard", indexFile: "chainguard_index.tb", fullFile: "chainguard_full.tb"}
+
+	for i := 0; i < dbMax; i++ {
+		indexData, err := newStagedFile(db.tmpPath, dbs.buffers[i].indexFile)
+		if err != nil {
+			log.WithFields(log.Fields{"error": err, "file": dbs.buffers[i].indexFile}).Error("Create staged index file error")
+			return false
+		}
+		fullData, err := newStagedFile(db.tmpPath, dbs.buffers[i].fullFile)
+		if err != nil {
+			log.WithFields(log.Fields{"error": err, "file": dbs.buffers[i].fullFile}).Error("Create staged full file error")
+			return false
+		}
+		dbs.buffers[i].indexData = indexData
+		dbs.buffers[i].fullData = fullData
+	}
+
+	appData, err := newStagedFile(db.tmpPath, "apps.tb")
+	if err != nil {
+		log.WithFields(log.Fields{"error": err, "file": "apps.tb"}).Error("Create staged app file error")
+		return false
+	}
+	dbs.appData = appData
 
 	dbs.rawSHA = make([][sha256.Size]byte, len(db.rawFiles))
 
@@ -293,13 +382,13 @@ func (db *memDB) UpdateDb(version string) bool {
 		}
 		keyVer.Shas["apps.tb"] = fmt.Sprintf("%x", dbs.appSHA)
 
-		var files []utils.TarFileInfo
+		var files []common.DBFileEntry
 		for _, i := range []int{dbUbuntu, dbDebian, dbCentos, dbAlpine} {
 			buf := &dbs.buffers[i]
-			files = append(files, utils.TarFileInfo{buf.indexFile, buf.indexBuf.Bytes()})
-			files = append(files, utils.TarFileInfo{buf.fullFile, buf.fullBuf.Bytes()})
+			files = append(files, common.DBFileEntry{Name: buf.indexFile, Path: buf.indexData.path})
+			files = append(files, common.DBFileEntry{Name: buf.fullFile, Path: buf.fullData.path})
 		}
-		files = append(files, utils.TarFileInfo{"apps.tb", dbs.appBuf.Bytes()})
+		files = append(files, common.DBFileEntry{Name: "apps.tb", Path: dbs.appData.path})
 
 		compactDB.Filename = db.tbPath + common.CompactCVEDBName
 		compactDB.Key = keyVer
@@ -322,17 +411,17 @@ func (db *memDB) UpdateDb(version string) bool {
 		}
 		keyVer.Shas["apps.tb"] = fmt.Sprintf("%x", dbs.appSHA)
 
-		var files []utils.TarFileInfo
+		var files []common.DBFileEntry
 		for i := 0; i < dbMax; i++ {
 			buf := &dbs.buffers[i]
-			files = append(files, utils.TarFileInfo{buf.indexFile, buf.indexBuf.Bytes()})
-			files = append(files, utils.TarFileInfo{buf.fullFile, buf.fullBuf.Bytes()})
-			log.WithFields(log.Fields{"database": buf.namespace, "size": buf.fullBuf.Len()}).Info()
+			files = append(files, common.DBFileEntry{Name: buf.indexFile, Path: buf.indexData.path})
+			files = append(files, common.DBFileEntry{Name: buf.fullFile, Path: buf.fullData.path})
+			log.WithFields(log.Fields{"database": buf.namespace, "size": buf.fullData.size}).Info()
 		}
-		files = append(files, utils.TarFileInfo{"apps.tb", dbs.appBuf.Bytes()})
-		log.WithFields(log.Fields{"database": "apps", "size": dbs.appBuf.Len()}).Info()
+		files = append(files, common.DBFileEntry{Name: "apps.tb", Path: dbs.appData.path})
+		log.WithFields(log.Fields{"database": "apps", "size": dbs.appData.size}).Info()
 		for i, v := range db.rawFiles {
-			files = append(files, utils.TarFileInfo{v.Name, v.Raw})
+			files = append(files, common.DBFileEntry{Name: v.Name, Body: v.Raw})
 			keyVer.Shas[v.Name] = fmt.Sprintf("%x", dbs.rawSHA[i])
 			log.WithFields(log.Fields{"database": v.Name, "size": len(v.Raw)}).Info()
 		}

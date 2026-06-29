@@ -1,10 +1,6 @@
 package common
 
-import (
-	"time"
-
-	utils "github.com/vul-dbgen/share"
-)
+import "time"
 
 const CompactCVEDBName = "cvedb.compact"
 const RegularCVEDBName = "cvedb.regular"
@@ -40,7 +36,13 @@ type CVSS struct {
 type DBFile struct {
 	Filename string
 	Key      KeyVersion
-	Files    []utils.TarFileInfo
+	Files    []DBFileEntry
+}
+
+type DBFileEntry struct {
+	Name string
+	Body []byte
+	Path string
 }
 
 type KeyVersion struct {
