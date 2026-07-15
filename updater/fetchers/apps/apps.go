@@ -3,7 +3,6 @@ package apps
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
@@ -30,7 +29,7 @@ func init() {
 }
 
 func addAppVulMap(mv *common.AppModuleVul) {
-	key := fmt.Sprintf("%s:%s", mv.ModuleName, mv.VulName)
+	key := mv.ModuleName + ":" + mv.VulName
 	vulMap[key] = mv
 }
 

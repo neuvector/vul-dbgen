@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,7 +118,7 @@ func SelectivelyExtractArchive(r io.Reader, selected func(string) bool, maxFileS
 			log.WithFields(log.Fields{"size": size, "filename": filename}).Error("file too big")
 			return nil
 		}
-		d, _ := ioutil.ReadAll(reader)
+		d, _ := io.ReadAll(reader)
 		data[filename] = d
 		return nil
 	}
@@ -142,7 +141,7 @@ func SelectivelyExtractToFiles(r io.Reader, dir string, selected func(string) bo
 			log.WithFields(log.Fields{"size": size, "filename": filename}).Error("file too big")
 			return nil
 		}
-		tmpfile, err := ioutil.TempFile(dir, "extract")
+		tmpfile, err := os.CreateTemp(dir, "extract")
 		if err != nil {
 			log.WithFields(log.Fields{"err": err, "filename": filename}).Error("write to temp file fail")
 			return nil
@@ -203,13 +202,13 @@ func ExtractAllArchiveToFiles(path string, r io.Reader, maxFileSize int64, encry
 
 		// Extract the element
 		if hdr.Typeflag == tar.TypeReg {
-			data, _ := ioutil.ReadAll(tr)
+			data, _ := io.ReadAll(tr)
 
 			if encryptKey != nil {
 				data, _ = Encrypt(encryptKey, data)
 			}
 
-			err = ioutil.WriteFile(path+filename, data, 0400)
+			err = os.WriteFile(path+filename, data, 0400)
 			if err != nil {
 				return err
 			}
@@ -330,7 +329,7 @@ func getTarReader(r io.Reader) (*TarReadCloser, error) {
 			}
 			return &TarReadCloser{tar.NewReader(gr), gr}, nil
 		case bytes.HasPrefix(header, bzip2Header):
-			bzip2r := ioutil.NopCloser(bzip2.NewReader(br))
+			bzip2r := io.NopCloser(bzip2.NewReader(br))
 			return &TarReadCloser{tar.NewReader(bzip2r), bzip2r}, nil
 		case bytes.HasPrefix(header, xzHeader):
 			xzr, err := NewXzReader(br)
@@ -341,7 +340,7 @@ func getTarReader(r io.Reader) (*TarReadCloser, error) {
 		}
 	}
 
-	dr := ioutil.NopCloser(br)
+	dr := io.NopCloser(br)
 	return &TarReadCloser{tar.NewReader(dr), dr}, nil
 }
 
@@ -401,7 +400,7 @@ func SelectivelyExtractModules(r io.Reader, lastfix string, maxFileSize int64) (
 
 		// Extract the element
 		if hdr.Typeflag == tar.TypeReg {
-			d, _ := ioutil.ReadAll(tr)
+			d, _ := io.ReadAll(tr)
 			data[filename] = d
 		}
 	}
@@ -409,12 +408,12 @@ func SelectivelyExtractModules(r io.Reader, lastfix string, maxFileSize int64) (
 	return data, nil
 }
 
-//func SelectivelyExtractToFile(r io.Reader, prefix string, toExtract []string, dir string) (map[string]string, error) {
+// func SelectivelyExtractToFile(r io.Reader, prefix string, toExtract []string, dir string) (map[string]string, error) {
 func SelectivelyExtractToFile(r io.Reader, selected func(string) bool, dir string) (map[string]string, error) {
 	files := make(map[string]string)
 
 	extract := func(filename string, size int64, reader io.ReadCloser) error {
-		fpath := dir + "/" + strings.Replace(filename, "/", "_", -1)
+		fpath := dir + "/" + strings.ReplaceAll(filename, "/", "_")
 		f, err := os.Create(fpath)
 		if err != nil {
 			return ErrCouldNotWriteToDisk

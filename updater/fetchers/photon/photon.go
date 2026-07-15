@@ -3,8 +3,8 @@ package alpine
 import (
 	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"os"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -85,7 +85,7 @@ func (f *PhotonFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 func (f *PhotonFetcher) fetchLocal(files []photonFile) ([]common.Vulnerability, error) {
 	results := []common.Vulnerability{}
 	for _, file := range files {
-		dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, file.Name)
+		dataFile := common.CVESourceRoot + file.Name
 		f, err := os.Open(dataFile)
 		if err != nil {
 			log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")
@@ -109,7 +109,7 @@ func (f *PhotonFetcher) fetchLocal(files []photonFile) ([]common.Vulnerability, 
 		}
 
 		for _, vuln := range r {
-			namespace := fmt.Sprintf("photon:%v", file.Version)
+			namespace := "photon:" + strconv.FormatFloat(file.Version, 'f', -1, 64)
 			if vuln.ResolvedVersion == "N/A" || vuln.ResolvedVersion == "NA" {
 				vuln.ResolvedVersion = common.MaxVersion.String()
 			}

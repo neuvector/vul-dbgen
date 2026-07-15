@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -112,7 +111,7 @@ func (fetcher *MarinerFetcher) FetchUpdate() (resp updater.FetcherResponse, err 
 
 	//Load each file
 	for _, marinerFile := range marinerFiles {
-		file, err := os.Open(fmt.Sprintf("%s/%s/%s", common.CVESourceRoot, marinerFolder, marinerFile))
+		file, err := os.Open(common.CVESourceRoot + "/" + marinerFolder + "/" + marinerFile)
 		if err != nil {
 			return resp, err
 		}
@@ -285,11 +284,13 @@ func toFeatureVersions(cvename string, criteria criteria, stateMap map[string]st
 			test := tstMap[criterionTestVersion]
 			objectID, err := getReferenceNum(test.Object.ObjectReference)
 			if err != nil {
-				fmt.Println(err)
+				log.WithError(err).WithField("test_ref", criterion.TestRef).Warn("Failed to parse Mariner object reference")
+				continue
 			}
 			stateID, err := getReferenceNum(test.State.StateReference)
 			if err != nil {
-				fmt.Println(err)
+				log.WithError(err).WithField("test_ref", criterion.TestRef).Warn("Failed to parse Mariner state reference")
+				continue
 			}
 			pkgName := objMap[objectID].Name
 			state := stateMap[stateID]

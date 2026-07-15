@@ -79,7 +79,7 @@ func cleanupVersion(version string) string {
 }
 
 func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
-	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, ghsaFile)
+	dataFile := common.CVESourceRoot + ghsaFile
 	f, err := os.Open(dataFile)
 	if err != nil {
 		log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")
@@ -126,18 +126,18 @@ func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 			vulName = r.Advisory.GHSAID
 		}
 
-		moduleName := fmt.Sprintf("%s%s", prefix, r.Package.Name)
+		moduleName := prefix + r.Package.Name
 		if lowercase {
 			moduleName = strings.ToLower(moduleName)
 		}
 		affectedVer := getVersion(cleanupVersion(r.AffectedVersion))
 		fixedVer := getVersion(cleanupVersion(r.PatchedVersion.Identifier))
-		key := fmt.Sprintf("%s-%s", vulName, moduleName)
+		key := vulName + "-" + moduleName
 
 		if v, ok := vmap[key]; !ok {
 			v = &common.AppModuleVul{
 				VulName:     vulName,
-				Description: fmt.Sprintf("%s\n%s\n", r.Advisory.Summary, r.Advisory.Description),
+				Description: r.Advisory.Summary + "\n" + r.Advisory.Description + "\n",
 				AffectedVer: affectedVer,
 				FixedVer:    fixedVer,
 				AppName:     app,

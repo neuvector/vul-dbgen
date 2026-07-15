@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os/exec"
 	"runtime"
 	"sort"
@@ -48,7 +47,7 @@ func GunzipBytes(buf []byte) []byte {
 		return nil
 	}
 	defer r.Close()
-	uzb, _ := ioutil.ReadAll(r)
+	uzb, _ := io.ReadAll(r)
 	return uzb
 }
 

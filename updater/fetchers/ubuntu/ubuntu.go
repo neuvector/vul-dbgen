@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -36,7 +35,7 @@ import (
 const (
 	trackerURI        = "https://launchpad.net/ubuntu-cve-tracker"
 	trackerRepository = "https://git.launchpad.net/ubuntu-cve-tracker"
-	cveURL            = "http://people.ubuntu.com/~ubuntu-security/cve/%s"
+	cveURL            = "http://people.ubuntu.com/~ubuntu-security/cve/"
 	ubuntuFolder      = "ubuntu-cve-tracker"
 	maxRetryTimes     = 5
 )
@@ -92,7 +91,7 @@ func init() {
 func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 	log.Info("fetching Ubuntu vulnerabilities")
 
-	dbDir := fmt.Sprintf("%s%s", common.CVESourceRoot, ubuntuFolder)
+	dbDir := common.CVESourceRoot + ubuntuFolder
 	if info, err := os.Stat(dbDir); err == nil && info.IsDir() {
 		log.Debug("Use local Ubuntu database")
 		fetcher.repositoryLocalPath = dbDir
@@ -148,7 +147,7 @@ func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 		// Store any unknown releases as notes.
 		for k := range unknownReleases {
-			note := fmt.Sprintf("Ubuntu %s is not mapped to any version number (eg. trusty->14.04). Please update me.", k)
+			note := "Ubuntu " + k + " is not mapped to any version number (eg. trusty->14.04). Please update me."
 			notes[note] = struct{}{}
 
 			// If we encountered unknown Ubuntu release, we don't want the revision
@@ -177,7 +176,7 @@ func (fetcher *UbuntuFetcher) pullRepository() (err error) {
 	// Determine whether we should branch or pull.
 	if _, pathExists := os.Stat(fetcher.repositoryLocalPath); fetcher.repositoryLocalPath == "" || os.IsNotExist(pathExists) {
 		// Create a temporary folder to store the repository.
-		if fetcher.repositoryLocalPath, err = ioutil.TempDir(os.TempDir(), "ubuntu-cve-tracker"); err != nil {
+		if fetcher.repositoryLocalPath, err = os.MkdirTemp(os.TempDir(), "ubuntu-cve-tracker"); err != nil {
 			return ErrFilesystem
 		}
 	}
@@ -294,7 +293,7 @@ func parseUbuntuCVE(fileContent io.Reader) (vulnerability common.Vulnerability, 
 		// Parse the name.
 		if strings.HasPrefix(line, "Candidate:") {
 			vulnerability.Name = strings.TrimSpace(strings.TrimPrefix(line, "Candidate:"))
-			vulnerability.Link = fmt.Sprintf(cveURL, vulnerability.Name)
+			vulnerability.Link = cveURL + vulnerability.Name
 			continue
 		}
 
