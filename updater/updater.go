@@ -333,12 +333,17 @@ func fixSeverityScore(feedSeverity common.Priority, maxCVSSv2, maxCVSSv3 *common
 }
 
 func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) ([]*common.Vulnerability, []*common.AppModuleVul) {
-	cveMap := make(map[string]*common.NVDMetadata)
 	start := time.Now()
 	log.WithFields(log.Fields{
 		"distroVuls": len(vuls),
 		"appVuls":    len(apps),
 	}).Info("Start assigning metadata")
+
+	// Initialize bbolt cache for cveMap
+	if err := initCveCache(); err != nil {
+		log.WithError(err).Fatal("Failed to initialize CVE cache")
+	}
+	defer closeCveCache()
 
 	// Use two loops to cross-reference metadata provided by all feeds and nvd
 
@@ -353,8 +358,8 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 			common.DEBUG_VULN(v, "pre distro")
 			key := fmt.Sprintf("%s:%s", v.Namespace, cve.Name)
 
-			// Lookup meta map first, if entry exists, means the NVD has been searched
-			if meta, ok := cveMap[key]; ok {
+			// Lookup bbolt cache first
+			if meta, ok := getCveMetadata(key); ok {
 				enrichDistroMeta(meta, v, &cve)
 			} else {
 				// lookup NVD and store the metadata
@@ -371,7 +376,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 					}
 				}
 
-				cveMap[key] = meta
+				putCveMetadata(key, meta)
 			}
 		}
 		if (i+1)%10000 == 0 {
@@ -379,7 +384,6 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				"phase":     "distro-pass1",
 				"processed": i + 1,
 				"total":     len(vuls),
-				"cveMap":    len(cveMap),
 				"elapsed":   time.Since(start).String(),
 			}).Info("Assign metadata progress")
 		}
@@ -393,8 +397,8 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 
 		for _, cve := range cves {
 			common.DEBUG_VULN(app, "pre app")
-			// Lookup meta map first, if entry exists, means the NVD has been searched
-			if meta, ok := cveMap[cve]; ok {
+			// Lookup bbolt cache first
+			if meta, ok := getCveMetadata(cve); ok {
 				enrichAppMeta(meta, app)
 			} else {
 				// lookup NVD and store the metadata
@@ -410,7 +414,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 						LastModifiedDate: app.LastModDate,
 					}
 				}
-				cveMap[cve] = meta
+				putCveMetadata(cve, meta)
 			}
 		}
 		if (i+1)%1000 == 0 {
@@ -418,7 +422,6 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 				"phase":     "app-pass1",
 				"processed": i + 1,
 				"total":     len(apps),
-				"cveMap":    len(cveMap),
 				"elapsed":   time.Since(start).String(),
 			}).Info("Assign metadata progress")
 		}
@@ -439,7 +442,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		cvss2 := v.CVSSv2
 		for _, cve := range cves {
 			key := fmt.Sprintf("%s:%s", v.Namespace, cve.Name)
-			if meta, ok := cveMap[key]; ok {
+			if meta, ok := getCveMetadata(key); ok {
 				if v.IssuedDate.IsZero() {
 					v.IssuedDate = meta.PublishedDate
 				}
@@ -495,7 +498,7 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 		cvss3 := common.CVSS{Vectors: app.VectorsV3, Score: app.ScoreV3}
 		cvss2 := common.CVSS{Vectors: app.Vectors, Score: app.Score}
 		for _, cve := range cves {
-			if meta, ok := cveMap[cve]; ok {
+			if meta, ok := getCveMetadata(cve); ok {
 				if app.IssuedDate.IsZero() {
 					app.IssuedDate = meta.PublishedDate
 				}
@@ -544,7 +547,6 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 	log.WithFields(log.Fields{
 		"distroOut": len(outVuls),
 		"appOut":    len(outApps),
-		"cveMap":    len(cveMap),
 		"elapsed":   time.Since(start).String(),
 	}).Info("Finished assigning metadata")
 
@@ -554,24 +556,28 @@ func assignMetadata(vuls []*common.Vulnerability, apps []*common.AppModuleVul) (
 // fetch get data from the registered fetchers, in parallel.
 func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppModuleVul, []*common.RawFile) {
 	status := true
+	common.LogMemStats("fetch-start")
 
 	status, osVuls := fetchDistroVul()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("distroVuls", len(osVuls)).Info("Fetched distro vulnerabilities")
+	common.LogMemStats("after-fetch-distro")
 
 	status, rawFiles := fetchRawData()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("rawFiles", len(rawFiles)).Info("Fetched raw vulnerability files")
+	common.LogMemStats("after-fetch-raw")
 
 	status, appVuls := fetchAppVul()
 	if !status {
 		return status, nil, nil, nil
 	}
 	log.WithField("appVuls", len(appVuls)).Info("Fetched app vulnerabilities")
+	common.LogMemStats("after-fetch-app")
 
 	log.Info("Start loading NVD metadata")
 	if err := nvd.NVD.Load(); err != nil {
@@ -579,16 +585,23 @@ func fetch(datastore Datastore) (bool, []*common.Vulnerability, []*common.AppMod
 		return false, nil, nil, nil
 	}
 	log.Info("Finished loading NVD metadata")
+	common.LogMemStats("after-load-nvd")
 
 	appVuls = injectNvdWhitelistApps(appVuls)
 	log.WithField("appVuls", len(appVuls)).Info("Injected NVD whitelist apps")
 	correctAppAffectedVersion(appVuls)
+	common.LogMemStats("after-correct-app")
 
 	vuls, apps := assignMetadata(osVuls, appVuls)
 	log.WithFields(log.Fields{
 		"distroVuls": len(vuls),
 		"appVuls":    len(apps),
 	}).Info("Fetch pipeline complete")
+	common.LogMemStats("after-assign-metadata")
+
+	// Cleanup NVD bbolt database
+	nvd.NVD.Unload()
+	common.LogMemStats("after-nvd-unload")
 
 	return status, vuls, apps, rawFiles
 }

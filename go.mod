@@ -1,15 +1,14 @@
 module github.com/vul-dbgen
 
-go 1.24.4
-
-toolchain go1.24.9
+go 1.25.0
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/k3a/html2text v1.0.8
 	github.com/ossf/osv-schema/bindings/go v0.0.0-20251014054035-182a83c87455
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.11.1
+	go.etcd.io/bbolt v1.5.0
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -18,6 +17,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
