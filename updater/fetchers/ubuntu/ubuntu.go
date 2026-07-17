@@ -142,6 +142,9 @@ func (fetcher *UbuntuFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 		// Add the vulnerability to the response.
 		upstreamCalibration(&v)
+		if updater.ShouldSkipDescription(v.Description) {
+			continue
+		}
 		if len(v.FixedIn) > 0 || fetcher.CvesIncludeGoVuln.Contains(v.Name) {
 			resp.Vulnerabilities = append(resp.Vulnerabilities, v)
 		}
