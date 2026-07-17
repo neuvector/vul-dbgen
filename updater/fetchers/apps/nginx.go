@@ -2,7 +2,7 @@ package apps
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -36,7 +36,7 @@ func nginxUpdate() error {
 	}
 	// Get the list of nginx that we have to process.
 	defer r.Body.Close()
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 
 	cves := strings.Split(string(body), "</p></li>")
 	var name, affectedVer, fixedVer string
@@ -75,9 +75,9 @@ func nginxUpdate() error {
 		match = severityRegexp.FindAllStringSubmatch(cve, -1)
 		if len(match) > 0 {
 			s := match[0]
-			severity := strings.Replace(s[1], "major", string(common.High), -1)
-			severity = strings.Replace(severity, "medium", string(common.Medium), -1)
-			severity = strings.Replace(severity, "low", string(common.Low), -1)
+			severity := strings.ReplaceAll(s[1], "major", string(common.High))
+			severity = strings.ReplaceAll(severity, "medium", string(common.Medium))
+			severity = strings.ReplaceAll(severity, "low", string(common.Low))
 			modVul.Severity = common.Priority(severity)
 		} else {
 			continue
@@ -111,8 +111,8 @@ func nginxUpdate() error {
 	}
 }
 
-//0.6.18-1.9.9
-//1.1.4-1.2.8, 1.3.9-1.4.0
+// 0.6.18-1.9.9
+// 1.1.4-1.2.8, 1.3.9-1.4.0
 var versionAffectedRegexp1 = regexp.MustCompile(`([0-9\.]+)\-([0-9\.]+)`)
 var versionAffectedRegexp2 = regexp.MustCompile(`([0-9\.]+)`)
 
@@ -162,7 +162,7 @@ func getFixedVersion(str string) []common.AppModuleVersion {
 	match := versionFixedRegexp.FindAllStringSubmatch(str, -1)
 	for _, s := range match {
 		if len(s) == 2 {
-			v := strings.Replace(s[1], "+", "", -1)
+			v := strings.ReplaceAll(s[1], "+", "")
 			mv := common.AppModuleVersion{OpCode: "gteq", Version: v}
 			modVerArr = append(modVerArr, mv)
 		}

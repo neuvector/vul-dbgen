@@ -3,7 +3,7 @@ package apps
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -81,7 +81,7 @@ func readCVEDetailsPage(url, product, module string) error {
 		return err
 	}
 	defer r.Body.Close()
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 
 	scanner := bufio.NewScanner(strings.NewReader(string(body)))
 	for scanner.Scan() {
@@ -123,7 +123,7 @@ func getCveDetail(cveurl, cve, product, module string) (*common.AppModuleVul, er
 		return nil, err
 	}
 
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
 	scanner := bufio.NewScanner(strings.NewReader(string(body)))
@@ -164,7 +164,7 @@ func getCveDetail(cveurl, cve, product, module string) (*common.AppModuleVul, er
 		if gettingFfixedVer {
 			if affectedStatus == 7 {
 				//product
-				if strings.Contains(line, fmt.Sprintf(">%s</a>", product)) {
+				if strings.Contains(line, ">"+product+"</a>") {
 					productMatch = true
 				} else {
 					productMatch = false

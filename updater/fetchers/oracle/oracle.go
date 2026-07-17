@@ -122,7 +122,7 @@ func (f *OracleFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 
 		retry := 0
 		for retry <= retryTimes {
-			rurl := fmt.Sprintf("%s%s", ovalURI, elsaFile)
+			rurl := ovalURI + elsaFile
 
 			client := http.Client{}
 			req, err := http.NewRequest("GET", rurl, nil)
@@ -474,9 +474,9 @@ func toFeatureVersions(cvename string, criteria criteria) []common.FeatureVersio
 
 func description(def definition) (desc string) {
 	// It is much more faster to proceed like this than using a Replacer.
-	desc = strings.Replace(def.Description, "\n\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n", " ", -1)
+	desc = strings.ReplaceAll(def.Description, "\n\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n", " ")
 	return
 }
 

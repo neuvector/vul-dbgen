@@ -151,7 +151,7 @@ func (f *SuseFetcher) fetchOvalData(o *ovalInfo) (updater.FetcherResponse, error
 
 	var resp updater.FetcherResponse
 
-	fullname := fmt.Sprintf("%s%s", common.CVESourceRoot, o.filename)
+	fullname := common.CVESourceRoot + o.filename
 	file, err := os.Open(fullname)
 	if err != nil {
 		log.WithFields(log.Fields{"file": o.filename}).Error("Failed to open the feed file")
@@ -378,7 +378,7 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 					if _, ok := noVersion[o.filename]; ok {
 						fv.Feature.Namespace = o.nsPrefix
 					} else {
-						fv.Feature.Namespace = fmt.Sprintf("%s%s", o.nsPrefix, ti.version)
+						fv.Feature.Namespace = o.nsPrefix + ti.version.String()
 					}
 				}
 			} else if !strings.HasPrefix(c.Comment, "SUSE") && (strings.Contains(c.Comment, " is installed") || strings.Contains(c.Comment, " is not affected")) {
@@ -417,9 +417,9 @@ func parsePackageVersions(o *ovalInfo, cvename string, criteria criteria, testMa
 
 func description(def definition) (desc string) {
 	// It is much more faster to proceed like this than using a Replacer.
-	desc = strings.Replace(def.Description, "\n\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n", " ", -1)
+	desc = strings.ReplaceAll(def.Description, "\n\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n", " ")
 	return
 }
 

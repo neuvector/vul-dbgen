@@ -121,10 +121,10 @@ func productNameToNamespace(productName string) string {
 	for _, f := range fields {
 		if v, err := strconv.ParseFloat(f, 64); err == nil {
 			// Only convert to the floor value of the float, e.g. 9.6 -> 9
-			return fmt.Sprintf("rocky:%d", int(v))
+			return "rocky:" + strconv.Itoa(int(v))
 		}
 	}
-	return fmt.Sprintf("rocky:%s", productName)
+	return "rocky:" + productName
 }
 
 // extractVersionFromNevra parses a NEVRA-formatted RPM string to extract the version.
@@ -178,7 +178,7 @@ func buildFixedInByNamespace(affectedProducts []affectedProduct, packages []pkg)
 	// rocky:9.4 => [8.0.6-2.el10_1] => common.FeatureVersion(8.0.6-2.el10_1)
 	packagesByNamespace := make(map[string]map[string]common.FeatureVersion)
 	for _, affectedProduct := range affectedProducts {
-		packagesByNamespace[fmt.Sprintf("rocky:%d", affectedProduct.MajorVersion)] = make(map[string]common.FeatureVersion)
+		packagesByNamespace["rocky:"+strconv.Itoa(affectedProduct.MajorVersion)] = make(map[string]common.FeatureVersion)
 	}
 
 	for _, pkg := range packages {
@@ -282,7 +282,7 @@ func fetchRockyLinuxErrata(ctx context.Context) (*apiResponse, error) {
 	page := 1
 
 	for {
-		url := fmt.Sprintf("%s?page=%d&size=%d", baseURL, page, pageSize)
+		url := baseURL + "?page=" + strconv.Itoa(page) + "&size=" + strconv.Itoa(pageSize)
 
 		req, err := retryablehttp.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {

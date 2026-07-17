@@ -68,7 +68,7 @@ func (fetcher *DebianFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 	var reader io.Reader
 
-	jsonFile := fmt.Sprintf("%s%s", common.CVESourceRoot, debianJsonFile)
+	jsonFile := common.CVESourceRoot + debianJsonFile
 	if f, err := os.Open(jsonFile); err == nil {
 		log.Debug("Use local Debian database")
 
@@ -110,7 +110,7 @@ func (fetcher *DebianFetcher) FetchUpdate() (resp updater.FetcherResponse, err e
 
 	for _, file := range additionalDebianFiles {
 		//Open json
-		jsonFile := fmt.Sprintf("%s%s", common.CVESourceRoot, file)
+		jsonFile := common.CVESourceRoot + file
 		if f, err := os.Open(jsonFile); err == nil {
 			log.WithFields(log.Fields{"file": file}).Debug("Using local Debian source")
 			defer f.Close()
