@@ -20,7 +20,7 @@ var vulCache utils.Set = utils.NewSet()
 var cveCalibrate map[string][]common.AppModuleVersion = make(map[string][]common.AppModuleVersion)
 
 // Sometimes source doesn't remove withdrawn CVEs
-var withdrawnCVEs = map[string]struct{}{"CVE-2021-23334": {}, "CVE-2024-4109": {}}
+var withdrawnCVEs = map[string]struct{}{"CVE-2021-23334": {}, "CVE-2024-4109": {}, "CVE-2026-33817": {}}
 
 // This is a workaround to use import to control app db generation
 type AppFetcher struct{}
@@ -68,6 +68,10 @@ func (f *AppFetcher) FetchUpdate() (resp updater.AppFetcherResponse, err error) 
 	for key, mv := range vulMap {
 		//Manually remove some withdrawn CVE entries.
 		if _, ok := withdrawnCVEs[mv.VulName]; ok {
+			delete(vulMap, key)
+			continue
+		}
+		if updater.ShouldSkipDescription(mv.Description) {
 			delete(vulMap, key)
 			continue
 		}
