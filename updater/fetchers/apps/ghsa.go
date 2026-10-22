@@ -71,7 +71,48 @@ func ghsaUpdate() error {
 	loadGHSAData(nugetDataFile, ".NET", ".NET:", false)
 	loadGHSAData(golangDataFile, "golang", "go:", false)
 	loadGHSAData(phpDataFile, "php", "php:", true)
+	spreadPHPSrcVuls()
 	return nil
+}
+
+// spreadPHPSrcVuls copies php:php-src vulnerabilities into every other php:*
+// module already in vulMap, then removes the php:php-src entries.
+func spreadPHPSrcVuls() {
+	const srcModule = "php:php-src"
+
+	phpSrcVuls := make([]*common.AppModuleVul, 0)
+	phpSrcKeys := make([]string, 0)
+	phpModules := make(map[string]struct{})
+
+	for key, mv := range vulMap {
+		if mv.ModuleName == srcModule {
+			phpSrcVuls = append(phpSrcVuls, mv)
+			phpSrcKeys = append(phpSrcKeys, key)
+		} else if strings.HasPrefix(mv.ModuleName, "php:") {
+			phpModules[mv.ModuleName] = struct{}{}
+		}
+	}
+
+	if len(phpSrcVuls) == 0 {
+		return
+	}
+
+	for _, mv := range phpSrcVuls {
+		for mod := range phpModules {
+			copy := *mv
+			copy.ModuleName = mod
+			copy.AffectedVer = append([]common.AppModuleVersion{}, mv.AffectedVer...)
+			copy.FixedVer = append([]common.AppModuleVersion{}, mv.FixedVer...)
+			copy.CVEs = append([]string{}, mv.CVEs...)
+			addAppVulMap(&copy)
+		}
+	}
+
+	for _, key := range phpSrcKeys {
+		delete(vulMap, key)
+	}
+
+	log.WithFields(log.Fields{"cves": len(phpSrcVuls), "modules": len(phpModules)}).Info("spread php:php-src vulnerabilities")
 }
 
 func cleanupVersion(version string) string {
