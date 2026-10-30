@@ -439,7 +439,7 @@ func loadGoOSVVulnerabilities() (map[string]*common.AppModuleVul, utils.Set, err
 	goVulnMap := make(map[string]*common.AppModuleVul)
 	cvesIncludeGoVuln := utils.NewSet()
 
-	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, goVulnDBPath)
+	dataFile := common.CVESourceRoot + goVulnDBPath
 	zipReader, err := zip.OpenReader(dataFile)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("Failed to open Go OSV zip file")

@@ -314,7 +314,7 @@ func (set *threadUnsafeSet) String() string {
 	for elem := range *set {
 		items = append(items, fmt.Sprintf("%v", elem))
 	}
-	return fmt.Sprintf("{%s}", strings.Join(items, ", "))
+	return "{" + strings.Join(items, ", ") + "}"
 }
 
 func (pair orderedPair) String() string {

@@ -3,7 +3,7 @@ package apps
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -36,7 +36,7 @@ func opensslUpdate() error {
 		return err
 	}
 
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
 	cves := strings.Split(string(body), "h3 id")

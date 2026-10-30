@@ -2,8 +2,7 @@ package alpine
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -22,11 +21,13 @@ const (
 	updaterFlag  = "alpine-secdbUpdater"
 	cveURLPrefix = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 )
+
 const (
 	aportsGitURL = "git://git.alpinelinux.org/aports"
 )
 
 var cveRegex = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
+var nsRegexp = regexp.MustCompile(`<a href="v.*/">(.*)/</a>.*-`)
 
 type AlpineFetcher struct {
 	repositoryLocalPath string
@@ -134,9 +135,13 @@ func (u *AlpineFetcher) downloadSecDB(url string) ([]common.Vulnerability, error
 		log.WithError(err).WithFields(log.Fields{"url": url}).Error("Failed to download alpine db")
 		return nil, err
 	}
-
-	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.WithError(err).WithFields(log.Fields{"url": url}).Error("Failed to read alpine db response")
+		return nil, err
+	}
 
 	return parseSecDB(body, url)
 }
@@ -147,17 +152,20 @@ func (u *AlpineFetcher) downloadSecDBNamespaces() ([]string, error) {
 		log.WithError(err).WithFields(log.Fields{"url": secdbURL}).Error("Failed to download alpine db")
 		return nil, err
 	}
-
 	defer r.Body.Close()
-	body, _ := ioutil.ReadAll(r.Body)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.WithError(err).WithFields(log.Fields{"url": secdbURL}).Error("Failed to read alpine db response")
+		return nil, err
+	}
 
 	nss := make([]string, 0)
-
-	// locate folder from the list
-	var nsRegexp = regexp.MustCompile(`<a href="v.*/">(.*)/</a>.*-`)
-	matches := nsRegexp.FindAllStringSubmatch(string(body[:]), -1)
+	matches := nsRegexp.FindAllSubmatch(body, -1)
 	for _, m := range matches {
-		nss = append(nss, m[1])
+		if len(m) == 2 && len(m[1]) > 0 {
+			nss = append(nss, string(m[1]))
+		}
 	}
 
 	return nss, nil
@@ -171,10 +179,10 @@ func (u *AlpineFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 		for _, ns := range nss {
 			log.WithFields(log.Fields{"namespace": ns}).Debug()
 
-			if vulns, err := u.downloadSecDB(fmt.Sprintf("%s/%s/main.json", secdbURL, ns)); err == nil {
+			if vulns, err := u.downloadSecDB(secdbURL + "/" + ns + "/main.json"); err == nil {
 				resp.Vulnerabilities = append(resp.Vulnerabilities, vulns...)
 			}
-			if vulns, err := u.downloadSecDB(fmt.Sprintf("%s/%s/community.json", secdbURL, ns)); err == nil {
+			if vulns, err := u.downloadSecDB(secdbURL + "/" + ns + "/community.json"); err == nil {
 				resp.Vulnerabilities = append(resp.Vulnerabilities, vulns...)
 			}
 		}
@@ -182,7 +190,7 @@ func (u *AlpineFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 
 	vulsMap := make(map[string]common.Vulnerability)
 	for _, vul := range resp.Vulnerabilities {
-		key := fmt.Sprintf("%s:%s", vul.FixedIn[0].Feature.Namespace, vul.Name)
+		key := vul.FixedIn[0].Feature.Namespace + ":" + vul.Name
 		vulsMap[key] = vul
 	}
 
@@ -190,7 +198,7 @@ func (u *AlpineFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) 
 	/*
 		if vuls, err := u.fromAports(); err == nil {
 			for _, vul := range vuls {
-				key := fmt.Sprintf("%s:%s", vul.FixedIn[0].Feature.Namespace, vul.Name)
+				key := vul.FixedIn[0].Feature.Namespace + ":" + vul.Name
 				if _, ok := vulsMap[key]; !ok {
 					correctVulRecord(&vul)
 					resp.Vulnerabilities = append(resp.Vulnerabilities, vul)

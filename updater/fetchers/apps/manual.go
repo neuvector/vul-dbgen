@@ -43,8 +43,8 @@ func manualUpdate() error {
 	var cveCount int
 
 	for _, fn := range []string{
-		fmt.Sprintf("%s%s%s", common.CVESourceRoot, appManualFolder, "busybox.db"),
-		fmt.Sprintf("%s%s%s", common.CVESourceRoot, appManualFolder, "toomcat.db"),
+		common.CVESourceRoot + appManualFolder + "busybox.db",
+		common.CVESourceRoot + appManualFolder + "toomcat.db",
 	} {
 		file, err := os.Open(fn)
 		if err != nil {

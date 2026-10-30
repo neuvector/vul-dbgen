@@ -4,10 +4,11 @@ import (
 	"compress/gzip"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,7 +70,7 @@ func (net netMethod) DownloadHTMLPage(url string) (string, string, error) {
 	}
 	defer r.Body.Close()
 
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	plain := html2text.HTML2Text(string(body))
 	return string(body), plain, nil
 }
@@ -106,7 +107,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 
 	vulns := make([]common.Vulnerability, 0)
 
-	fullname := fmt.Sprintf("%s%s", common.CVESourceRoot, o.filename)
+	fullname := common.CVESourceRoot + o.filename
 	file, err := os.Open(fullname)
 	if err != nil {
 		log.WithFields(log.Fields{"file": o.filename}).Error("Failed to open the feed file")
@@ -191,7 +192,7 @@ func (u *AmazonFetcher) fetchOvalFeed(o *ovalInfo, net updater.NetInterface) ([]
 				}
 				featureVersion := common.FeatureVersion{
 					Feature: common.Feature{
-						Namespace: fmt.Sprintf("amzn:%d", o.version),
+						Namespace: "amzn:" + strconv.Itoa(o.version),
 						Name:      pkg,
 					},
 					Version: ver,

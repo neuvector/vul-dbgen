@@ -1,7 +1,6 @@
 package nvd
 
 import (
-	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -78,7 +77,7 @@ func (n nvdCVSSBaseMetrics) String() string {
 func addVec(str *string, vec, val string) {
 	if val != "" {
 		if let, ok := vectorValuesToLetters[val]; ok {
-			*str = fmt.Sprintf("%s%s:%s/", *str, vec, let)
+			*str += vec + ":" + let + "/"
 		} else {
 			log.Printf("unknown value '%v' for CVSSv2 vector '%s'", val, vec)
 		}

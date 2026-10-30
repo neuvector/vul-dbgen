@@ -2,7 +2,6 @@ package apps
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -21,7 +20,7 @@ const rubyGitUrl = "https://github.com/rubysec/ruby-advisory-db"
 func rubyUpdate() error {
 	log.Debug("")
 
-	repositoryLocalPath, err := ioutil.TempDir(os.TempDir(), "ruby-advisory-db")
+	repositoryLocalPath, err := os.MkdirTemp(os.TempDir(), "ruby-advisory-db")
 	if err != nil {
 		return fmt.Errorf("something went wrong when interacting with the fs")
 	}
@@ -108,7 +107,7 @@ type rubyVul struct {
 
 func parseRubyYml(yaml string) *rubyVul {
 	m := make(map[interface{}]interface{})
-	data, _ := ioutil.ReadFile(yaml)
+	data, _ := os.ReadFile(yaml)
 	err := yamlv2.Unmarshal([]byte(data), &m)
 	if err != nil {
 		return nil
@@ -249,10 +248,10 @@ func getOperation(op string, rev bool) string {
 	}
 }
 
-//~> 4.2.5, >= 4.2.5.1
-//>= 2.12.5, < 3.0.0
-//~> 3.9.5
-//>= 1.9.24
+// ~> 4.2.5, >= 4.2.5.1
+// >= 2.12.5, < 3.0.0
+// ~> 3.9.5
+// >= 1.9.24
 var ver1Regex = regexp.MustCompile(`~> ([0-9a-zA-Z\.]+), >= ([0-9a-zA-Z\.]+)`)
 var ver2Regex = regexp.MustCompile(`([\<\>\=]+) ([0-9a-zA-Z\.]+), ([\<\>\=]+) ([0-9a-zA-Z\.]+)`)
 var ver3Regex = regexp.MustCompile(`~> ([0-9a-zA-Z\.]+)`)

@@ -1,10 +1,8 @@
 package alpine
 
 import (
+	"os"
 	"testing"
-
-	"io/ioutil"
-	"regexp"
 )
 
 func TestParseSecDbIndex(t *testing.T) {
@@ -27,7 +25,6 @@ func TestParseSecDbIndex(t *testing.T) {
 </pre><hr></body>
 </html>
 `
-	var nsRegexp = regexp.MustCompile(`<a href="v.*/">(.*)/</a>.*-`)
 	matches := nsRegexp.FindAllStringSubmatch(index, -1)
 
 	var count int
@@ -43,7 +40,7 @@ func TestParseSecDbIndex(t *testing.T) {
 
 func TestParseSecDb(t *testing.T) {
 	filename := "secdb36main"
-	body, _ := ioutil.ReadFile(filename)
+	body, _ := os.ReadFile(filename)
 
 	if _, err := parseSecDB(body, filename); err != nil {
 		t.Errorf("Unmarshal error: %v", err)

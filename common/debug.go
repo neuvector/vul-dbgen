@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 
 func firstN(s string, n int) string {
 	if len(s) > n {
-		return fmt.Sprintf("%s...", s[:n])
+		return s[:n] + "..."
 	}
 	return s
 }

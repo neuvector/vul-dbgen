@@ -4,7 +4,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	log "github.com/sirupsen/logrus"
@@ -32,7 +32,7 @@ type k8sData struct {
 func k8sUpdate() error {
 	log.Info("fetching kubernetes vulnerabilities")
 
-	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, k8sDataFile)
+	dataFile := common.CVESourceRoot + k8sDataFile
 	f, err := os.Open(dataFile)
 	if err != nil {
 		log.WithFields(log.Fields{"file": dataFile}).Error("Cannot find local database")
@@ -48,7 +48,7 @@ func k8sUpdate() error {
 	}
 	defer gzr.Close()
 
-	byteValue, _ := ioutil.ReadAll(gzr)
+	byteValue, _ := io.ReadAll(gzr)
 
 	var data k8sData
 	if err = json.Unmarshal(byteValue, &data); err != nil {

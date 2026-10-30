@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -122,7 +121,7 @@ func (f *RHELCpeFetcher) FetchUpdate() (updater.RawFetcherResponse, error) {
 		log.WithFields(log.Fields{"error": err}).Error("Could not download CPE mapping json")
 		return resp, err
 	}
-	body, _ := ioutil.ReadAll(r.Body)
+	body, _ := io.ReadAll(r.Body)
 	r.Body.Close()
 
 	log.WithFields(log.Fields{"size": len(body), "file": common.RHELCpeMapFile}).Info("fetching Red Hat CPE map done")
@@ -135,8 +134,8 @@ func (f *RHELFetcher) fetchPreDownload(rhelFolder string) ([]common.Vulnerabilit
 	var results []common.Vulnerability
 
 	for _, ros := range rhsaOS {
-		folder := fmt.Sprintf("%s/%d", rhelFolder, ros)
-		files, err := ioutil.ReadDir(folder)
+		folder := rhelFolder + "/" + strconv.Itoa(ros)
+		files, err := os.ReadDir(folder)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +143,7 @@ func (f *RHELFetcher) fetchPreDownload(rhelFolder string) ([]common.Vulnerabilit
 			if strings.HasSuffix(f.Name(), ".xml.bz2") {
 				log.WithFields(log.Fields{"os": ros, "file": f.Name()}).Debug("Read redhat feed")
 
-				rfp, err := os.Open(fmt.Sprintf("%s/%s", folder, f.Name()))
+				rfp, err := os.Open(folder + "/" + f.Name())
 				cr := bzip2.NewReader(rfp)
 				vs, err := parseRHSA(ros, f.Name(), cr)
 				rfp.Close()
@@ -166,7 +165,7 @@ func (f *RHELFetcher) fetchRemote() ([]common.Vulnerability, error) {
 	var results []common.Vulnerability
 
 	for _, ros := range rhsaOS {
-		rurl := fmt.Sprintf("%sRHEL%d/", ovalURI2, ros)
+		rurl := ovalURI2 + "RHEL" + strconv.Itoa(ros) + "/"
 		req, err := http.NewRequest("GET", rurl, nil)
 		req.Header.Add("User-Agent", "dbgen")
 		client := http.Client{}
@@ -200,7 +199,7 @@ func (f *RHELFetcher) fetchRemote() ([]common.Vulnerability, error) {
 			retry := 0
 			for retry <= retryTimes {
 				client := http.Client{}
-				rurl = fmt.Sprintf("%sRHEL%d/%s", ovalURI2, ros, rhsa)
+				rurl = ovalURI2 + "RHEL" + strconv.Itoa(ros) + "/" + rhsa
 				req, err := http.NewRequest("GET", rurl, nil)
 				req.Header.Add("User-Agent", "dbgen")
 				r, err := client.Do(req)
@@ -247,7 +246,7 @@ func (f *RHELFetcher) FetchUpdate() (resp updater.FetcherResponse, err error) {
 
 	var results []common.Vulnerability
 
-	rhelFolder := fmt.Sprintf("%s/%s", common.CVESourceRoot, rhelSubfolder)
+	rhelFolder := common.CVESourceRoot + "/" + rhelSubfolder
 	if _, err = os.Stat(rhelFolder); os.IsNotExist(err) {
 		results, err = f.fetchRemote()
 	} else {
@@ -284,7 +283,7 @@ func cullAllVulns(respVuln []common.Vulnerability) []common.Vulnerability {
 	cullVulns(rhsamap, cveMap)
 	//add the rhsas back to the cves after culling
 	for _, val := range rhsas {
-		key := fmt.Sprintf("%v:%v", val.Namespace, val.Name)
+		key := val.Namespace + ":" + val.Name
 		cveMap[key] = val
 	}
 
@@ -300,7 +299,7 @@ func makeCveMap(allVulns []common.Vulnerability) map[string]common.Vulnerability
 	cveMap := make(map[string]common.Vulnerability)
 
 	for _, vuln := range allVulns {
-		key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
+		key := vuln.Namespace + ":" + vuln.Name
 
 		if exist, ok := cveMap[key]; !ok {
 			// entry doesn't exist, create it.
@@ -327,7 +326,7 @@ func makeCveMap(allVulns []common.Vulnerability) map[string]common.Vulnerability
 	return cveMap
 }
 
-//getRHSACVEs returns a map of all CVE names to the matching RHSA entries.
+// getRHSACVEs returns a map of all CVE names to the matching RHSA entries.
 func getRHSACVEs(fullVulns map[string]common.Vulnerability) (map[string][]common.Vulnerability, map[string]common.Vulnerability, map[string]common.Vulnerability) {
 	result := make(map[string][]common.Vulnerability)
 	cves := make(map[string]common.Vulnerability)
@@ -335,10 +334,10 @@ func getRHSACVEs(fullVulns map[string]common.Vulnerability) (map[string][]common
 
 	for _, vuln := range fullVulns {
 		if strings.Contains(strings.ToLower(vuln.Name), "rhsa") {
-			rhsaskey := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
+			rhsaskey := vuln.Namespace + ":" + vuln.Name
 			rhsas[rhsaskey] = vuln
 			for _, cve := range vuln.CVEs {
-				key := fmt.Sprintf("%s:%s", vuln.Namespace, cve.Name)
+				key := vuln.Namespace + ":" + cve.Name
 				//if slice doesn't exist
 				if _, ok := result[key]; !ok {
 					//if the data exists, initialize the slice
@@ -354,7 +353,7 @@ func getRHSACVEs(fullVulns map[string]common.Vulnerability) (map[string][]common
 			}
 		} else {
 			//cve case
-			key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
+			key := vuln.Namespace + ":" + vuln.Name
 			if _, ok := cves[key]; !ok {
 				//entry doesn't exist, create it.
 				cves[key] = vuln
@@ -366,7 +365,7 @@ func getRHSACVEs(fullVulns map[string]common.Vulnerability) (map[string][]common
 
 func cullVulns(rhsamap map[string][]common.Vulnerability, cvemap map[string]common.Vulnerability) {
 	for cvekey, vuln := range cvemap {
-		key := fmt.Sprintf("%s:%s", vuln.Namespace, vuln.Name)
+		key := vuln.Namespace + ":" + vuln.Name
 		remainingFeatures := vuln.FixedIn
 		if rhsas, ok := rhsamap[key]; ok {
 			for _, rhsa := range rhsas {
@@ -385,7 +384,7 @@ func cullVulns(rhsamap map[string][]common.Vulnerability, cvemap map[string]comm
 	}
 }
 
-//removeMatchingFeatures removes entries in entryA that match an entry in entryB
+// removeMatchingFeatures removes entries in entryA that match an entry in entryB
 func removeMatchingFeatures(entryA []common.FeatureVersion, entryB []common.FeatureVersion) []common.FeatureVersion {
 	result := make([]common.FeatureVersion, 0)
 	foundFeatures := make(map[string]bool)
@@ -666,9 +665,9 @@ func toFeatureVersions(ros int, rhsa, cvename string, criteria criteria) []commo
 
 func description(def definition) (desc string) {
 	// It is much more faster to proceed like this than using a Replacer.
-	desc = strings.Replace(def.Description, "\n\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n\n", " ", -1)
-	desc = strings.Replace(desc, "\n", " ", -1)
+	desc = strings.ReplaceAll(def.Description, "\n\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n\n", " ")
+	desc = strings.ReplaceAll(desc, "\n", " ")
 	return
 }
 

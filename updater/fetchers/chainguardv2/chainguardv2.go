@@ -16,7 +16,8 @@ import (
 
 const (
 	chainguardOSVZipPath = "chainguard/osv-v2.zip"
-	advisoryURL          = "https://advisories.cgr.dev/chainguard/v2/osv/%s.json"
+	advisoryURLPrefix    = "https://advisories.cgr.dev/chainguard/v2/osv/"
+	advisoryURLSuffix    = ".json"
 	cveURLPrefix         = "https://cve.mitre.org/cgi-bin/cvename.cgi?name="
 	chainguardNamespace  = "chainguard"
 	wolfiNamespace       = "wolfi"
@@ -41,7 +42,7 @@ func FetchVulnerabilities(targetEcosystem, targetNamespace string) ([]common.Vul
 		return nil, fmt.Errorf("unsupported namespace: %s", targetNamespace)
 	}
 
-	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, chainguardOSVZipPath)
+	dataFile := common.CVESourceRoot + chainguardOSVZipPath
 	zipReader, err := zip.OpenReader(dataFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open Chainguard OSV v2 zip file %s: %w", dataFile, err)
@@ -149,7 +150,7 @@ func parseAdvisory(body []byte, targetEcosystem, targetNamespace string) ([]comm
 		modified = adv.Modified.AsTime()
 	}
 
-	advisoryLink := fmt.Sprintf(advisoryURL, adv.Id)
+	advisoryLink := advisoryURLPrefix + adv.Id + advisoryURLSuffix
 
 	vulnMap := make(map[string]*common.Vulnerability, len(cves))
 	existFeatures := make(map[string]map[featureKey]struct{}, len(cves))
