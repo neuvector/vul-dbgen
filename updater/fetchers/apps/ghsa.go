@@ -65,12 +65,12 @@ type ghsaData struct {
 
 func ghsaUpdate() error {
 	log.Info("fetching ghsa vulnerabilities")
-	loadGHSAData(npmDataFile, "npm", "", false)
-	loadGHSAData(mavenDataFile, "maven", "", false)
-	loadGHSAData(pipDataFile, "pip", "python:", false)
-	loadGHSAData(nugetDataFile, ".NET", ".NET:", false)
-	loadGHSAData(golangDataFile, "golang", "go:", false)
-	loadGHSAData(phpDataFile, "php", "php:", true)
+	loadGHSAData(npmDataFile, "npm", "", false, false)
+	loadGHSAData(mavenDataFile, "maven", "", false, false)
+	loadGHSAData(pipDataFile, "pip", "python:", false, false)
+	loadGHSAData(nugetDataFile, ".NET", ".NET:", false, false)
+	loadGHSAData(golangDataFile, "golang", "go:", false, false)
+	loadGHSAData(phpDataFile, "php", "php:", true, true)
 	spreadPHPSrcVuls()
 	return nil
 }
@@ -119,7 +119,35 @@ func cleanupVersion(version string) string {
 	return jreRegex.ReplaceAllString(version, "")
 }
 
-func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
+// inferPhpBranchBound converts a bare upper-bound range (e.g. "< 8.4.27") into a
+// branch-bounded range (>= 8.4.0 AND < 8.4.27) so that multiple PHP branch
+// entries for the same CVE don't collapse into one over-broad OR condition that
+// causes cross-branch false positives.
+func inferPhpBranchBound(versions []common.AppModuleVersion) []common.AppModuleVersion {
+	if len(versions) != 1 {
+		return versions
+	}
+	v := versions[0]
+	var secondOp string
+	switch v.OpCode {
+	case "lt":
+		secondOp = "andlt"
+	case "lteq":
+		secondOp = "andlteq"
+	default:
+		return versions
+	}
+	parts := strings.SplitN(v.Version, ".", 3)
+	if len(parts) < 2 {
+		return versions
+	}
+	return []common.AppModuleVersion{
+		{OpCode: "gteq", Version: parts[0] + "." + parts[1] + ".0"},
+		{OpCode: secondOp, Version: v.Version},
+	}
+}
+
+func loadGHSAData(ghsaFile, app, prefix string, lowercase, inferBranchBounds bool) error {
 	dataFile := fmt.Sprintf("%s%s", common.CVESourceRoot, ghsaFile)
 	f, err := os.Open(dataFile)
 	if err != nil {
@@ -172,6 +200,9 @@ func loadGHSAData(ghsaFile, app, prefix string, lowercase bool) error {
 			moduleName = strings.ToLower(moduleName)
 		}
 		affectedVer := getVersion(cleanupVersion(r.AffectedVersion))
+		if inferBranchBounds {
+			affectedVer = inferPhpBranchBound(affectedVer)
+		}
 		fixedVer := getVersion(cleanupVersion(r.PatchedVersion.Identifier))
 		key := fmt.Sprintf("%s-%s", vulName, moduleName)
 
