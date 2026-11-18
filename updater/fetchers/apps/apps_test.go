@@ -13,11 +13,18 @@ import (
 func TestRubyAffectedVersion(t *testing.T) {
 	patched := [][]string{
 		// []string{">= 2.12.5, < 3.0.0", ">= 3.7.2, < 4.0.0", ">= 4.0.0.beta8"},
+		// 3-segment: prefix = drop last segment (unchanged behaviour)
 		[]string{">= 1.3.1", "~> 1.2.2", "~> 1.1.1", "~> 1.0.4"},
+		// 4-segment: prefix must be 3 segments, not 2 (NVSHAS-10357)
+		[]string{"~> 4.0.3.1", "~> 4.0.4.1", "~> 6.0.1.1", ">= 6.0.4"},
+		// uri CVE-2023-28755
+		[]string{"~> 0.10.0.1", "~> 0.10.2", "~> 0.11.1", ">= 0.12.1"},
 	}
 	affected := [][]common.AppModuleVersion{
 		// []ModuleVersion{{"lt", "2.12.5"}, {"gteq", "3.0.0"}, {"andlt", "3.7.2"}, {"gteq", "4.0.0"}, {"andlt", "4.0.0.beta8"}},
 		[]common.AppModuleVersion{{"lt", "1.3.1"}, {"orlt", "1.2.2,1.2"}, {"orlt", "1.1.1,1.1"}, {"orlt", "1.0.4,1.0"}},
+		[]common.AppModuleVersion{{"lt", "4.0.3.1,4.0.3"}, {"orlt", "4.0.4.1,4.0.4"}, {"orlt", "6.0.1.1,6.0.1"}, {"orlt", "6.0.4"}},
+		[]common.AppModuleVersion{{"lt", "0.10.0.1,0.10.0"}, {"orlt", "0.10.2,0.10"}, {"orlt", "0.11.1,0.11"}, {"orlt", "0.12.1"}},
 	}
 
 	for i, c := range patched {
