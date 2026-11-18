@@ -267,10 +267,12 @@ func parseRubyVersion(i int, pv string, rev bool) ([]common.AppModuleVersion, bo
 		mver.OpCode += getOperation(">=", rev)
 		// only get the first two numbers in the version as prefix
 		mver.Version = str[2]
+		// prefix = all segments of the pessimistic version except the last,
+		// matching Ruby ~> semantics: "~> 4.0.3.1" → prefix 4.0.3, not 4.0.
 		if s := strings.Split(str[1], "."); len(s) <= 2 {
 			mver.Version += "," + str[1]
 		} else {
-			mver.Version += "," + strings.Join(s[:2], ".")
+			mver.Version += "," + strings.Join(s[:len(s)-1], ".")
 		}
 		return []common.AppModuleVersion{mver}, true
 	} else if str := ver2Regex.FindStringSubmatch(pv); len(str) > 0 {
@@ -284,13 +286,10 @@ func parseRubyVersion(i int, pv string, rev bool) ([]common.AppModuleVersion, bo
 	} else if str := ver3Regex.FindStringSubmatch(pv); len(str) > 0 {
 		if s := strings.Split(str[1], "."); len(s) > 0 {
 			mver.OpCode += getOperation(">=", rev)
-			// only get the first two numbers in the version as prefix
+			// prefix = all segments except the last,
+			// matching Ruby ~> pessimistic-constraint semantics.
 			mver.Version = str[1]
-			if len(s) <= 2 {
-				mver.Version += "," + strings.Join(s[:len(s)-1], ".")
-			} else {
-				mver.Version += "," + strings.Join(s[:2], ".")
-			}
+			mver.Version += "," + strings.Join(s[:len(s)-1], ".")
 			return []common.AppModuleVersion{mver}, true
 		} else {
 			return []common.AppModuleVersion{}, false
