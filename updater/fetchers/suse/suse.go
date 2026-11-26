@@ -25,7 +25,7 @@ type ovalInfo struct {
 
 var (
 	ovals []ovalInfo = []ovalInfo{
-		{"suse/suse.linux.enterprise.server.16.xml.gz", "SUSE Linux Enterprise Server 16 ", "sles:"},
+		{"suse/suse.linux.enterprise.server.16.xml.gz", "SUSE Linux Enterprise Server 16", "sles:"},
 		{"suse/suse.linux.enterprise.server.15.xml.gz", "SUSE Linux Enterprise Server 15 ", "sles:"},
 		{"suse/suse.linux.enterprise.server.12.xml.gz", "SUSE Linux Enterprise Server 12 ", "sles:"},
 		{"suse/suse.linux.enterprise.server.11.xml.gz", "SUSE Linux Enterprise Server 11 ", "sles:"},
