@@ -30,6 +30,41 @@ func TestRubyAffectedVersion(t *testing.T) {
 	}
 }
 
+func TestNginxVulnerabilityWithoutSeverity(t *testing.T) {
+	originalVulMap := vulMap
+	vulMap = make(map[string]*common.AppModuleVul)
+	t.Cleanup(func() { vulMap = originalVulMap })
+
+	const advisory = `<li><p>Excessive CPU usage in TLS 1.3 with ssl_early_data<br><a href="https://my.f5.com/manage/s/article/K000163947">Advisory</a><br><a href="https://www.cve.org/CVERecord?id=CVE-2026-132779">CVE-2026-132779</a><br>Not vulnerable: 1.31.10+, 1.30.8+<br>Vulnerable: 1.21.4-1.31.9</p></li>`
+
+	if err := parseNginxVulnerabilities(advisory); err != nil {
+		t.Fatalf("parseNginxVulnerabilities() error = %v", err)
+	}
+
+	vul, ok := vulMap["nginx:CVE-2026-132779"]
+	if !ok {
+		t.Fatal("Nginx advisory without Severity was not parsed")
+	}
+	if vul.Description != "Excessive CPU usage in TLS 1.3 with ssl_early_data" {
+		t.Errorf("Description = %q", vul.Description)
+	}
+	if vul.Severity != common.Unknown {
+		t.Errorf("Severity = %q, want %q", vul.Severity, common.Unknown)
+	}
+	if vul.Link != "https://my.f5.com/manage/s/article/K000163947" {
+		t.Errorf("Link = %q", vul.Link)
+	}
+
+	wantAffected := []common.AppModuleVersion{{OpCode: "gteq", Version: "1.21.4"}, {OpCode: "lteq", Version: "1.31.9"}}
+	if !reflect.DeepEqual(vul.AffectedVer, wantAffected) {
+		t.Errorf("AffectedVer = %#v, want %#v", vul.AffectedVer, wantAffected)
+	}
+	wantFixed := []common.AppModuleVersion{{OpCode: "gteq", Version: "1.31.10"}, {OpCode: "gteq", Version: "1.30.8"}}
+	if !reflect.DeepEqual(vul.FixedVer, wantFixed) {
+		t.Errorf("FixedVer = %#v, want %#v", vul.FixedVer, wantFixed)
+	}
+}
+
 func TestOpensslVulVersion(t *testing.T) {
 	lines := []string{
 		"		<li>from 1.0.1 before 1.0.1u </li>",

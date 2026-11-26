@@ -18,86 +18,82 @@ const (
 
 // FetchUpdate gets vulnerability updates from the Nginx OVAL definitions.
 func nginxUpdate() error {
-	var cveNameRegexp = regexp.MustCompile(`">([A-Z0-9\-]*)</a><br>`)
-	var affectedVerRegexp = regexp.MustCompile(`<br>Vulnerable: ([0-9a-zA-Z\s\/\.\-,]*)`)
-	var fixedVerRegexp = regexp.MustCompile(`<br>Not vulnerable: ([0-9a-zA-Z\.+\-,\s]*)<br>`)
-	var descriptionRegexp = regexp.MustCompile(`<li><p>(.*)<br>Severity:`)
-	var severityRegexp = regexp.MustCompile(`<br>Severity: <?b?>?(high|major|medium|low)<?/?b?>?<br>`)
-	var linkRegexp = regexp.MustCompile(`<a href="(.*)">Advisory`)
-
-	var cveCount int
 	log.Info("fetching Nginx vulnerabilities")
 
-	// Fetch the update list.
 	r, err := http.Get(nginxuri)
 	if err != nil {
 		log.Debugf("could not download Nginx's update list: %s", err.Error())
 		return err
 	}
-	// Get the list of nginx that we have to process.
 	defer r.Body.Close()
-	body, _ := ioutil.ReadAll(r.Body)
 
-	cves := strings.Split(string(body), "</p></li>")
-	var name, affectedVer, fixedVer string
-	var modVul common.AppModuleVul
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
 
-	for _, cve := range cves {
+	return parseNginxVulnerabilities(string(body))
+}
+
+func parseNginxVulnerabilities(body string) error {
+	cveNameRegexp := regexp.MustCompile(`">([A-Z0-9\-]+)</a><br>`)
+	affectedVerRegexp := regexp.MustCompile(`<br>Vulnerable: ([0-9a-zA-Z\s\/\.\-,]*)`)
+	fixedVerRegexp := regexp.MustCompile(`<br>Not vulnerable: ([0-9a-zA-Z\.\+\-,\s]*)<br>`)
+	descriptionRegexp := regexp.MustCompile(`<li><p>(.*?)<br>`)
+	severityRegexp := regexp.MustCompile(`<br>Severity: <?b?>?(high|major|medium|low)<?/?b?>?<br>`)
+	linkRegexp := regexp.MustCompile(`<a href="([^"]*)">Advisory`)
+
+	var cveCount int
+	for _, cve := range strings.Split(body, "</p></li>") {
 		match := descriptionRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			modVul.Description = s[1]
-		} else {
+		if len(match) == 0 {
 			log.WithFields(log.Fields{"cve": cve}).Info("Not match Description")
 			continue
 		}
+		description := match[0][1]
+
 		match = cveNameRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			name = s[1]
-		} else {
+		if len(match) == 0 {
 			log.WithFields(log.Fields{"cve": cve}).Info("Not match name")
 			continue
 		}
+		name := match[0][1]
+
 		match = affectedVerRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			affectedVer = s[1]
-		} else {
+		if len(match) == 0 {
 			log.WithFields(log.Fields{"cve": cve}).Info("Not match affectedVer")
 			continue
 		}
-		match = fixedVerRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			fixedVer = s[1]
-		}
-		match = severityRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			severity := strings.Replace(s[1], "major", string(common.High), -1)
-			severity = strings.Replace(severity, "medium", string(common.Medium), -1)
-			severity = strings.Replace(severity, "low", string(common.Low), -1)
-			modVul.Severity = common.Priority(severity)
-		} else {
-			continue
-		}
-		match = linkRegexp.FindAllStringSubmatch(cve, -1)
-		if len(match) > 0 {
-			s := match[0]
-			modVul.Link = s[1]
-		}
+		affectedVer := match[0][1]
 		if affectedVer == "" {
 			log.WithFields(log.Fields{"cve": cve}).Info("no affected version found")
 			continue
 		}
-		modVul.AffectedVer = getAffectedVersion(affectedVer)
-		modVul.FixedVer = getFixedVersion(fixedVer)
 
-		modVul.VulName = name
-		modVul.AppName = "nginx"
-		modVul.ModuleName = "nginx"
-		modVul.CVEs = []string{name}
+		fixedVer := ""
+		if match = fixedVerRegexp.FindAllStringSubmatch(cve, -1); len(match) > 0 {
+			fixedVer = match[0][1]
+		}
+
+		modVul := common.AppModuleVul{
+			VulName:     name,
+			AppName:     "nginx",
+			ModuleName:  "nginx",
+			Description: description,
+			Severity:    common.Unknown,
+			AffectedVer: getAffectedVersion(affectedVer),
+			FixedVer:    getFixedVersion(fixedVer),
+			CVEs:        []string{name},
+		}
+		if match = severityRegexp.FindAllStringSubmatch(cve, -1); len(match) > 0 {
+			severity := strings.Replace(match[0][1], "major", string(common.High), -1)
+			severity = strings.Replace(severity, "medium", string(common.Medium), -1)
+			severity = strings.Replace(severity, "low", string(common.Low), -1)
+			modVul.Severity = common.Priority(severity)
+		}
+		if match = linkRegexp.FindAllStringSubmatch(cve, -1); len(match) > 0 {
+			modVul.Link = match[0][1]
+		}
 
 		addAppVulMap(&modVul)
 		cveCount++
@@ -105,14 +101,13 @@ func nginxUpdate() error {
 	if cveCount == 0 {
 		log.Error("Nginx update CVE FAIL")
 		return fmt.Errorf("Nginx update CVE FAIL")
-	} else {
-		log.WithFields(log.Fields{"cve": cveCount}).Info("Nginx update")
-		return nil
 	}
+	log.WithFields(log.Fields{"cve": cveCount}).Info("Nginx update")
+	return nil
 }
 
-//0.6.18-1.9.9
-//1.1.4-1.2.8, 1.3.9-1.4.0
+// 0.6.18-1.9.9
+// 1.1.4-1.2.8, 1.3.9-1.4.0
 var versionAffectedRegexp1 = regexp.MustCompile(`([0-9\.]+)\-([0-9\.]+)`)
 var versionAffectedRegexp2 = regexp.MustCompile(`([0-9\.]+)`)
 
